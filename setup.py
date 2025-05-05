@@ -18,7 +18,7 @@ with open(join('.', "README.md"), "r") as handle:
 with open(join('.', "requirements.txt"), "r") as handle:
     requirements = handle.read()
 
-with open(join('.', 'holodeck', 'version.txt')) as handle:
+with open(join('.', 'holodeck2', 'version.txt')) as handle:
     version = handle.read().strip()
 
 
