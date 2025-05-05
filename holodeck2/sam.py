@@ -147,7 +147,7 @@ class SAM:
         return edges, ndens
 
 
-    def number_expect_4d_gwonly_instant(self, fobs_gw_cents, edges_3d, ndens_3d):
+    def number_expect_4d_gwonly_instant(self, fobs_gw_edges, edges_3d, ndens_3d):
         """Total number of binaries in the universe, assuming GW-Only & instantaneous evolution.
 
         Assumptions:
@@ -156,16 +156,12 @@ class SAM:
 
         """
 
-        # fobs_orb = np.asarray(fobs_orb)
-        # edges = self.edges + [fobs_orb, ]
+        # NOTE: this is a 'linear'-spaced center-point
+        fobs_gw_cents = utils.midpoints_lin(fobs_gw_edges)
+        dln_fobs = np.diff(np.log(fobs_gw_edges))
 
-        # Number density of binaries:  d3n/[dlog10(M) dq dz]   units: [cMpc^-3]
-        # shape: (M1, M2, Z)
-        # ndens = self.number_density_3d()
-        # mbh1, mbh2, redz = self.edges_3d
         mbh1, mbh2, redz = edges_3d
-
-        # shape_out = np.shape(ndens) + (fobs_gw_cents.size,)
+        cents_4d = [fobs_gw_cents, utils.midpoints_log(mbh1), utils.midpoints_log(mbh2), utils.midpoints_lin(redz)]
 
         # ---- Residence Time : time spent in the given frequency-band
 
@@ -173,8 +169,8 @@ class SAM:
         frst_orb = physics.frst_from_fobs(fobs_gw_cents[:, np.newaxis], redz[np.newaxis, :], nharm=2)
         # (F, M, M, Z)
         tauf = physics.gw_hardening_time_freq(
-            mbh1[np.newaxis, :, np.newaxis, np.newaxis],
-            mbh2[np.newaxis, np.newaxis, :, np.newaxis],
+            mbh1[np.newaxis, :, np.newaxis, np.newaxis] * MSOL,
+            mbh2[np.newaxis, np.newaxis, :, np.newaxis] * MSOL,
             frst_orb[:, np.newaxis, np.newaxis, :],
         )
 
@@ -188,32 +184,34 @@ class SAM:
         #! FIX: make sure this is d4n/[dlog10(m1) dlog10(m2) dz dlnf]  --- i.e. the log10 of both masses.
         diff_numb = ndens_3d[np.newaxis, ...] * cosmo_fact * tauf
 
+        # print(f"{np.shape(diff_numb)=} : {utils.stats(diff_numb)}")
+        # print(f"{np.shape(ndens_3d)=} : {utils.stats(ndens_3d)}")
+        # print(f"{np.shape(cosmo_fact)=} : {utils.stats(cosmo_fact)}")
+        # print(f"{np.shape(tauf)=} : {utils.stats(tauf/GYR)} [Gyr]")
+
         # ==== Integrate over differential number ==============================
 
-        # ---- Frequency ($ln f$)
+        # Frequency ($ln f$), axis 0   :   (F,M,M,Z) ==> (F,M,M,Z)
+        numb = diff_numb[:, ...] * dln_fobs[:, np.newaxis, np.newaxis, np.newaxis]
 
-        numb =
+        # Mass 1 ($log_{10} m_1$), axis 1   :   (F,M,M,Z) ==> (F,M-1,M,Z)
+        dlog10_mbh = np.diff(np.log10(mbh1))
+        numb = (numb[:, 1:, ...] + numb[:, :-1, ...]) * dlog10_mbh[np.newaxis, :, np.newaxis, np.newaxis]
 
-        # ---- Mass 1
+        # Mass 2 ($log_{10} m_1$), axis 2   :   (F,M-1,M,Z) ==> (F,M-1,M-1,Z)
+        numb = (numb[:, :, 1:, :] + numb[:, :, :-1, :]) * dlog10_mbh[np.newaxis, np.newaxis, :, np.newaxis]
 
-        dlog10m = np.diff(np.log10(mbh1))
-        numb = (diff_numb[1:, ...] + diff_numb[:-1, ...]) * dlog10m
-        numb = (numb[:, 1:, ...] + diff_numb[:, :-1, ...]) * dlog10m
+        # Redshift ($z$), axis 3   :   (F,M-1,M-1,Z) ==> (F,M-1,M-1,Z-1)
+        d_redz = np.diff(redz)
+        numb = (numb[:, :, :, 1:] + numb[:, :, :, :-1]) * d_redz[np.newaxis, np.newaxis, np.newaxis, :]
 
+        # we've added together 2-sides on 3 dimensions, so 2^3 = 8
+        numb /= 8.0
 
-        # use_redz = redz_final
-        # edges = [sam.mtot, sam.mrat, sam.redz, fobs_orb_edges]
-
-        # number = sam_cyutils.integrate_differential_number_3dx1d(edges, diff_num)
-
-
-        return
-
-
+        return cents_4d, numb
 
 
-
-
+    # def
 
 
 
