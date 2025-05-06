@@ -133,3 +133,87 @@ def quantiles(values, percs=None, sigmas=None, weights=None, axis=None,
              for idx in np.ndindex(values.shape[:-1])]
     percs = np.array(percs)
     return percs
+
+
+def trapz_loglog( yy, xx, axis=-1, dlogx=None, lntol=1e-2):
+    """Calculate integral, given `y = dA/dx` or `y = dA/dlogx` w/ trapezoid rule in log-log space.
+
+    We are calculating the integral `A` given sets of values for `y` and `x`.
+    To associate `yy` with `dA/dx` then `dlogx = None` [default], otherwise,
+    to associate `yy` with `dA/dlogx` then `dlogx = True` for natural-logarithm, or `dlogx = b`
+    for a logarithm of base `b`.
+
+    For each interval (x[i+1], x[i]), calculate the integral assuming that y is of the form,
+        `y = a * x^gamma`
+
+    Parameters
+    ----------
+    yy : ndarray
+    xx : (X,) array_like of scalar,
+    bounds : (2,) array_like of scalar,
+    axis : int,
+    dlogx : scalar or None,
+    lntol : scalar,
+
+    Returns
+    -------
+    integ
+
+    """
+
+    if np.ndim(yy) != np.ndim(xx):
+        if (np.ndim(xx) != 1) or (np.size(xx) != np.shape(yy)[axis]):
+            raise ValueError(f"Mismatch between shapes of `xx` and `yy` ({np.shape(xx)=}, {np.shape(yy)=})")
+
+        # convert `xx` from shape (N,) to (1, ... N, ..., 1) where all
+        # dimensions besides `axis` have length one
+        cut = [np.newaxis for ii in range(np.ndim(yy))]
+        cut[axis] = slice(None)
+        xx = xx[tuple(cut)]
+
+    log_base = np.e
+    # If `dlogx` is True, then we're using log-base-e (i.e. natural-log)
+    # Otherwise, set the log-base to the given value
+    if dlogx not in [None, True]:
+        log_base = dlogx
+    elif dlogx is None:
+        dlogx = False
+
+    # Numerically calculate the local power-law index
+    delta_logx = np.diff(np.log(xx), axis=axis)
+    gamma = np.diff(np.log(yy), axis=axis) / delta_logx
+    xx = np.moveaxis(xx, axis, 0)
+    yy = np.moveaxis(yy, axis, 0)
+    # aa = np.mean([xx[:-1] * yy[:-1], xx[1:] * yy[1:]], axis=0)
+    # aa = np.moveaxis(aa, 0, axis)
+    # xx = np.moveaxis(xx, 0, axis)
+    # yy = np.moveaxis(yy, 0, axis)
+
+    # Integrate dA/dx   ::   A = (x1*y1 - x0*y0) / (gamma + 1)
+    if (dlogx is False):
+        dz = np.diff(yy * xx, axis=0)
+        integ = dz / (gamma + 1)
+        # when the power-law is (near) '-1' then, `A = a * log(x1/x0)`
+        idx = np.isclose(gamma, -1.0, atol=lntol, rtol=lntol)
+
+    # Integrate dA/dlogx    ::    A = (y1 - y0) / gamma
+    else:
+        dy = np.diff(yy, axis=0)
+        integ = dy / gamma
+        # when the power-law is (near) '-1' then, `A = a * log(x1/x0)`
+        idx = np.isclose(gamma, 0.0, atol=lntol, rtol=lntol)
+
+    if np.any(idx):
+        aa = np.mean([xx[:-1] * yy[:-1], xx[1:] * yy[1:]], axis=0)
+        # if `xx.shape != yy.shape` then `delta_logx` should be shaped (N-1, 1, 1, 1...)
+        # broadcast `delta_logx` to the same shape as `idx` in this case
+        if np.shape(xx) != np.shape(yy):
+            delta_logx = delta_logx * np.ones_like(aa)
+        integ[idx] = aa[idx] * delta_logx[idx]
+
+    integ = integ / np.log(log_base)
+    xx = np.moveaxis(xx, 0, axis)
+    yy = np.moveaxis(yy, 0, axis)
+    integ = np.moveaxis(integ, 0, axis)
+    return integ
+

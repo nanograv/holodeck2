@@ -266,6 +266,7 @@ def redz_after(time, redz=None, age=None):
     return new_redz
 '''
 
+
 def pta_freqs(dur=16.03*YR, num=40, cad=None):
     """Get Fourier frequency bin specifications for the given parameters.
 
@@ -768,3 +769,6 @@ def _gw_ecc_func(eccen):
     den = np.power(1.0 - e2, 7.0/2.0)
     fe = num / den
     return fe
+
+
+
