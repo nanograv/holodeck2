@@ -57,3 +57,5 @@ GYR = 1.0e9*YR                                  #: Giga-year [s]
 KPC = 1.0e3*PC                                  #: Kilo-parsec [cm]
 MPC = 1.0e6*PC                                  #: Mega-parsec [cm]
 GPC = 1.0e9*PC                                  #: Giga-parsec [cm]
+
+del np, ap, astropy
