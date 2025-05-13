@@ -18,8 +18,27 @@ project(holodeck2_cpp LANGUAGES CXX)
 set(CMAKE_OSX_ARCHITECTURES "x86_64")
 set(CMAKE_CXX_STANDARD 17)
 
+# ==============================================================================
+# ====    Find Dependencies    ====
+# ==============================================================================
+
 # Get Python include path and extension suffix
 find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
+
+# find_package(Qt6 REQUIRED COMPONENTS
+#     Widgets  # Covers QApplication, QWidget, QTimer
+#     Core     # Covers QTime
+#     Gui      # Covers QPainter
+# )
+
+# find_package(Boost REQUIRED COMPONENTS
+#     program_options      # for parsing configuration input files
+# )
+
+
+# ==============================================================================
+# ====    Setup Module    ====
+# ==============================================================================
 
 add_library(holodeck2_cpp MODULE src/pymodule_holodeck2_cpp.cpp)
 
@@ -41,7 +60,6 @@ set_target_properties(holodeck2_cpp PROPERTIES
 # Include Python headers
 target_include_directories(holodeck2_cpp PRIVATE ${Python3_INCLUDE_DIRS})
 
-
 # Make symlink to CWD
 add_custom_command(TARGET holodeck2_cpp POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E create_symlink
@@ -49,3 +67,46 @@ add_custom_command(TARGET holodeck2_cpp POST_BUILD
             ${CMAKE_CURRENT_SOURCE_DIR}/$<TARGET_FILE_NAME:holodeck2_cpp>
     COMMENT "Symlinking built Python extension to source dir"
 )
+
+
+# ==============================================================================
+# ====    Setup Executable    ====
+# ==============================================================================
+
+add_executable(holodeck2cpp
+    src/main.cpp
+    src/sam.cpp
+)
+
+# target_link_libraries(warp PRIVATE
+#     # Qt6
+#     Qt6::Widgets
+#     Qt6::Core
+#     Qt6::Gui
+#     # Boost
+#     Boost::program_options
+# )
+
+
+add_custom_command(TARGET holodeck2cpp POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
+            $<TARGET_FILE:holodeck2cpp>
+            ${CMAKE_CURRENT_SOURCE_DIR}/$<TARGET_FILE_NAME:holodeck2cpp>
+    COMMENT "Symlinking built c++ executable to source dir"
+)
+
+
+
+# Add directories where *header files* can be found for a particular target
+# target_include_directories(warp PUBLIC include)
+
+# ---- Variables
+# set(MY_VARIABLE "value")
+# Use variable as${MY_VARIABLE}.
+
+# ---- Modify C code with CMake variables
+# configure_file (
+#     "${PROJECT_SOURCE_DIR}/include/My/Version.h.in"
+#     "${PROJECT_BINARY_DIR}/include/My/Version.h"
+# )
+

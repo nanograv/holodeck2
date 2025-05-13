@@ -47,7 +47,7 @@ static PyObject* custom_function(PyObject *self, PyObject *args) {
 // =============================================================================
 
 
-static PyMethodDef Holodeck2_CPP_Methods[] = {
+static PyMethodDef holodeck2_cpp_methods[] = {
     {
         "custom_function",             // Name (str)
         custom_function,               // Function (pointer)
@@ -63,7 +63,7 @@ static PyModuleDef holodeck2_cpp_module = {
     .m_name = "holodeck2cpp",
     .m_doc = "Example module that creates an extension type.",
     .m_size = -1,
-    .m_methods = Holodeck2_CPP_Methods,
+    .m_methods = holodeck2_cpp_methods,
 };
 
 
