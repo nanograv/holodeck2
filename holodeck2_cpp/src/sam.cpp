@@ -12,6 +12,50 @@
 
 
 void grav_waves(PTA* pta, GravWaves *gw, SAM* sam) {
+    int num_freqs = pta->num_freqs;
+    int num_reals = gw->num_reals;
+    int num_louds = gw->num_louds;
+    int num_mass = sam->num_mass;
+    int num_redz = sam->num_redz;
+
+    float* fobs_edges = pta->fobs_edges;
+    float* fobs_cents = pta->fobs_cents;
+    float* mass_edges = sam->mass_edges;
+    float* mass_cents = sam->mass_cents;
+    float* redz_edges = sam->redz_edges;
+    float* redz_cents = sam->redz_cents;
+
+    float** gwb = gw->gwb;
+    float*** cws = gw->cws;
+
+    float hs2;    // spectral strain of an individual binary
+    float mchirp; // chirp mass
+    float dist_com; // comoving distance
+
+    for(int m1 = 0; m1 < num_mass; m1++) {
+        for(int m2 = 0; m2 < num_mass; m2++) {
+
+            // mchirp = physics.chirp_mass(m1=mass_cents[m1], m2=mass_cents[m2]);
+            // dist_com = cosmo.comoving_distance(redz_cents).cgs.value;
+
+            for(int z = 0; z < num_redz; z++) {
+                for(int f = 0; f < num_freqs; f++) {
+
+                    // hs2 = pow(physics.gw_strain_source(mchirp*MSOL, dist_com, frst_orb), 2);
+                    // gwb_sq = (numb_4d / d_lnf) * hs2
+
+
+                    for(int r = 0; r < num_reals; r++) {
+
+                    }
+
+                }
+            }
+
+        }
+    }
+
+
 
 }
 

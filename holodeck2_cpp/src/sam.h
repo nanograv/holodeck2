@@ -10,68 +10,69 @@
 #include <cmath>
 
 #include "constants.h"
+#include "physics.h"
 
 
 class PTA {
 
 public:
-    float obsDur;
-    int numFreqs;
-    float* fobsCents;
-    float* fobsEdges;
+    float obs_dur;
+    int num_freqs;
+    float* fobs_cents;
+    float* fobs_edges;
 
-    PTA(float dur=20.0, float nfreqs=30) : obsDur(dur), numFreqs(nfreqs) {
-        fobsCents = (float*)malloc(numFreqs * sizeof(float));
-        fobsEdges = (float*)malloc((numFreqs+1) * sizeof(float));
-        float df = 1.0 / obsDur;
-        fobsEdges[0] = df * 0.5;
-        for (int ii = 0; ii < numFreqs; ii++) {
-            fobsCents[ii] = df * (ii + 1);
-            fobsEdges[ii+1] = df * (ii + 1.5);
+    PTA(float dur=20.0, float nfreqs=30) : obs_dur(dur), num_freqs(nfreqs) {
+        fobs_cents = (float*)malloc(num_freqs * sizeof(float));
+        fobs_edges = (float*)malloc((num_freqs+1) * sizeof(float));
+        float df = 1.0 / obs_dur;
+        fobs_edges[0] = df * 0.5;
+        for (int ii = 0; ii < num_freqs; ii++) {
+            fobs_cents[ii] = df * (ii + 1);
+            fobs_edges[ii+1] = df * (ii + 1.5);
         }
     };
 
-    // float* fobsCents() { return fobsCents; };
-    // float* fobsEdges() { return fobsEdges;};
+    // float* fobs_cents() { return fobs_cents; };
+    // float* fobs_edges() { return fobs_edges;};
 
     ~PTA() {
-        free(fobsCents);
-        free(fobsEdges);
+        free(fobs_cents);
+        free(fobs_edges);
     };
 
 // private:
-//     float* fobsCents;
-//     float* fobsEdges;
+//     float* fobs_cents;
+//     float* fobs_edges;
 
 };
 
 
 class GravWaves {
 public:
-    int numFreqs;
-    int numReals;
-    int numLouds;
+    int num_freqs;
+    int num_reals;
+    int num_louds;
 
     float** gwb;
     float*** cws;
 
-    GravWaves(PTA *pta, int nreals = 100, int nloud = 5) : pta(pta), numReals(nreals), numLouds(nloud) {
-        numFreqs = pta->numFreqs;
-        gwb = (float** )malloc(numFreqs * sizeof(float*));
-        cws = (float*** )malloc(numFreqs * sizeof(float**));
-        for (int ii = 0; ii < numFreqs; ii++) {
-            gwb[ii] = (float* )malloc(numReals * sizeof(float));
-            cws[ii] = (float** )malloc(numReals * sizeof(float*));
-            for (int jj = 0; jj < numReals; jj++) {
-                cws[ii][jj] = (float* )malloc(numLouds * sizeof(float));
+    GravWaves(PTA *pta, int nreals = 100, int nloud = 5) : pta(pta), num_reals(nreals), num_louds(nloud) {
+        num_freqs = pta->num_freqs;
+        gwb = (float** )malloc(num_freqs * sizeof(float*));
+        cws = (float*** )malloc(num_freqs * sizeof(float**));
+        for (int ii = 0; ii < num_freqs; ii++) {
+            gwb[ii] = (float* )malloc(num_reals * sizeof(float));
+            cws[ii] = (float** )malloc(num_reals * sizeof(float*));
+            for (int jj = 0; jj < num_reals; jj++) {
+                cws[ii][jj] = (float* )malloc(num_louds * sizeof(float));
             }
         }
     }
 
     ~GravWaves() {
-        for (int ii = 0; ii < pta->numFreqs; ii++) {
+        for (int ii = 0; ii < pta->num_freqs; ii++) {
             free(gwb[ii]);
-            for (int jj = 0; jj < numReals; jj++) {
+            for (int jj = 0; jj < num_reals; jj++) {
                 free(cws[ii][jj]);
             }
             free(cws[ii]);
@@ -88,12 +89,12 @@ private:
 
 class SAM {
 public:
-    int numMass;
-    int numRedz;
-    float *massEdges;
-    float *redzEdges;
-    float *massCents;
-    float *redzCents;
+    int num_mass;
+    int num_redz;
+    float *mass_edges;
+    float *redz_edges;
+    float *mass_cents;
+    float *redz_cents;
 
 //! FIX: make these private
 // private:
@@ -135,41 +136,41 @@ public:
     float mmbulge_bulge_frac = 0.7;
 
     SAM() {
-        numMass = mass_pars[2];
-        numRedz = redz_pars[2];
-        massCents = (float*)malloc(numMass * sizeof(float));
-        redzCents = (float*)malloc(numRedz * sizeof(float));
-        massEdges = (float*)malloc((numMass+1) * sizeof(float));
-        redzEdges = (float*)malloc((numRedz+1) * sizeof(float));
+        num_mass = mass_pars[2];
+        num_redz = redz_pars[2];
+        mass_cents = (float*)malloc(num_mass * sizeof(float));
+        redz_cents = (float*)malloc(num_redz * sizeof(float));
+        mass_edges = (float*)malloc((num_mass+1) * sizeof(float));
+        redz_edges = (float*)malloc((num_redz+1) * sizeof(float));
 
         // ---- Initialize mass edges and centers
 
-        float dlog10m = (log10(mass_pars[1]) - log10(mass_pars[1])) / numMass;
+        float dlog10m = (log10(mass_pars[1]) - log10(mass_pars[1])) / num_mass;
         float next, prev = log10(mass_pars[0]);
-        massEdges[0] = pow(10.0, prev);
-        for (int ii = 0; ii < numMass; ii++) {
+        mass_edges[0] = pow(10.0, prev);
+        for (int ii = 0; ii < num_mass; ii++) {
             next = prev + dlog10m;
-            massEdges[ii+1] = pow(10.0, next);
-            massCents[ii] = pow(10.0, 0.5 * (prev + next));
+            mass_edges[ii+1] = pow(10.0, next);
+            mass_cents[ii] = pow(10.0, 0.5 * (prev + next));
         }
 
         // ---- Initialize redshift edges and centers
-        float dlog10z = (log10(redz_pars[1]) - log10(redz_pars[0])) / numRedz;
+        float dlog10z = (log10(redz_pars[1]) - log10(redz_pars[0])) / num_redz;
         prev = log10(redz_pars[0]);
-        redzEdges[0] = pow(10.0, prev);
-        for (int ii = 0; ii < numRedz; ii++) {
+        redz_edges[0] = pow(10.0, prev);
+        for (int ii = 0; ii < num_redz; ii++) {
             next = prev + dlog10z;
-            redzEdges[ii+1] = pow(10.0, next);
-            redzCents[ii] = pow(10.0, 0.5 * (prev + next));
+            redz_edges[ii+1] = pow(10.0, next);
+            redz_cents[ii] = pow(10.0, 0.5 * (prev + next));
         }
 
     }
 
     ~SAM() {
-        free(massCents);
-        free(redzCents);
-        free(massEdges);
-        free(redzEdges);
+        free(mass_cents);
+        free(redz_cents);
+        free(mass_edges);
+        free(redz_edges);
     };
 
     /*
@@ -270,6 +271,8 @@ public:
     */
 };
 
+
+void grav_waves(PTA* pta, GravWaves *gw, SAM* sam);
 
 
 #endif  // SAM_H

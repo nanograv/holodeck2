@@ -18,6 +18,8 @@ project(holodeck2_cpp LANGUAGES CXX)
 set(CMAKE_OSX_ARCHITECTURES "x86_64")
 set(CMAKE_CXX_STANDARD 17)
 
+set(DATA_PATH "${CMAKE_CURRENT_SOURCE_DIR}/data")
+
 # ==============================================================================
 # ====    Find Dependencies    ====
 # ==============================================================================
@@ -41,6 +43,8 @@ find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
 # ==============================================================================
 
 add_library(holodeck2_cpp MODULE src/pymodule_holodeck2_cpp.cpp)
+
+target_compile_definitions(holodeck2_cpp PUBLIC PATH_DATA_DIR="${DATA_PATH}")
 
 # Determine appropriate file-suffix for shared-library
 execute_process(
@@ -70,7 +74,7 @@ add_custom_command(TARGET holodeck2_cpp POST_BUILD
 
 
 # ==============================================================================
-# ====    Setup Executable    ====
+# ====    Setup Executables    ====
 # ==============================================================================
 
 add_executable(holodeck2cpp
@@ -94,6 +98,23 @@ add_custom_command(TARGET holodeck2cpp POST_BUILD
             ${CMAKE_CURRENT_SOURCE_DIR}/$<TARGET_FILE_NAME:holodeck2cpp>
     COMMENT "Symlinking built c++ executable to source dir"
 )
+
+# ---- Tests
+
+add_executable(tester
+    tests/tester.cpp
+)
+
+# target_link_libraries(tester PRIVATE holodeck2_cpp)
+target_compile_definitions(tester PUBLIC PATH_DATA_DIR="${DATA_PATH}")
+
+# target_compile_definitions(tester PRIVATE
+#     PATH_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data"
+# )
+
+
+# target_include_directories(test_cosmology PRIVATE include)
+# target_link_libraries(test_cosmology PRIVATE cosmo_core_lib)  # replace with actual target
 
 
 
