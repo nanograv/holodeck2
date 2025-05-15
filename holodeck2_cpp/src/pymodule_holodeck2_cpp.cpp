@@ -33,7 +33,7 @@ static PyTypeObject CustomType = {
 static PyObject* custom_function(PyObject *self, PyObject *args) {
     int argOne;
     int argTwo;
-    float argThree = 0.0;
+    double argThree = 0.0;
 
     if (!PyArg_ParseTuple(args, "ii|f", &argOne, &argTwo, &argThree))
         return NULL;

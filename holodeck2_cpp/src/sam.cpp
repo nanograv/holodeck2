@@ -18,19 +18,19 @@ void grav_waves(PTA* pta, GravWaves *gw, SAM* sam) {
     int num_mass = sam->num_mass;
     int num_redz = sam->num_redz;
 
-    float* fobs_edges = pta->fobs_edges;
-    float* fobs_cents = pta->fobs_cents;
-    float* mass_edges = sam->mass_edges;
-    float* mass_cents = sam->mass_cents;
-    float* redz_edges = sam->redz_edges;
-    float* redz_cents = sam->redz_cents;
+    double* fobs_edges = pta->fobs_edges;
+    double* fobs_cents = pta->fobs_cents;
+    double* mass_edges = sam->mass_edges;
+    double* mass_cents = sam->mass_cents;
+    double* redz_edges = sam->redz_edges;
+    double* redz_cents = sam->redz_cents;
 
-    float** gwb = gw->gwb;
-    float*** cws = gw->cws;
+    double** gwb = gw->gwb;
+    double*** cws = gw->cws;
 
-    float hs2;    // spectral strain of an individual binary
-    float mchirp; // chirp mass
-    float dist_com; // comoving distance
+    double hs2;    // spectral strain of an individual binary
+    double mchirp; // chirp mass
+    double dist_com; // comoving distance
 
     for(int m1 = 0; m1 < num_mass; m1++) {
         for(int m2 = 0; m2 < num_mass; m2++) {

@@ -21,44 +21,44 @@
 
 // ---- Magic Numbers
 
-constexpr float PI         = 3.14159265E+00;
-constexpr float TWO_PI     = 6.28318531E+00;
+constexpr double PI         = 3.14159265E+00;
+constexpr double TWO_PI     = 6.28318531E+00;
 
 // ---- Constants
 
-constexpr float EDDT       = 6.32196208E+04;
-constexpr float NWTG       = 6.67430000E-08;
-constexpr float SCHW       = 1.48523205E-28;
-constexpr float SPLC       = 2.99792458E+10;
+constexpr double EDDT       = 6.32196208E+04;
+constexpr double NWTG       = 6.67430000E-08;
+constexpr double SCHW       = 1.48523205E-28;
+constexpr double SPLC       = 2.99792458E+10;
 
 // ---- Units
 
-constexpr float ARCSEC     = 4.84813681E-06;
-constexpr float AU         = 1.49597871E+13;
-constexpr float DAY        = 8.64000000E+04;
-constexpr float KMPERSEC   = 1.00000000E+05;
-constexpr float LSOL       = 3.82800000E+33;
-constexpr float MPRT       = 1.67262192E-24;
-constexpr float MSOL       = 1.98840987E+33;
-constexpr float PC         = 3.08567758E+18;
-constexpr float RSOL       = 6.95700000E+10;
-constexpr float YR         = 3.15576000E+07;
+constexpr double ARCSEC     = 4.84813681E-06;
+constexpr double AU         = 1.49597871E+13;
+constexpr double DAY        = 8.64000000E+04;
+constexpr double KMPERSEC   = 1.00000000E+05;
+constexpr double LSOL       = 3.82800000E+33;
+constexpr double MPRT       = 1.67262192E-24;
+constexpr double MSOL       = 1.98840987E+33;
+constexpr double PC         = 3.08567758E+18;
+constexpr double RSOL       = 6.95700000E+10;
+constexpr double YR         = 3.15576000E+07;
 
 // ---- Derived
 
-constexpr float MYR        = 3.15576000E+13;
-constexpr float GYR        = 3.15576000E+16;
+constexpr double MYR        = 3.15576000E+13;
+constexpr double GYR        = 3.15576000E+16;
 
-constexpr float KPC        = 3.08567758E+21;
-constexpr float MPC        = 3.08567758E+24;
-constexpr float GPC        = 3.08567758E+27;
+constexpr double KPC        = 3.08567758E+21;
+constexpr double MPC        = 3.08567758E+24;
+constexpr double GPC        = 3.08567758E+27;
 
-// constexpr float HPLANCK    = 6.62607015E-27;
-// constexpr float JY         = 1.00000000E-23;
-// constexpr float KBOLTZ     = 1.38064900E-16;
-// constexpr float EVOLT      = 1.60217663E-12;    // Electron Volt
-// constexpr float MELC       = 9.10938370E-28;
-// constexpr float QELC       = 4.80320471E-10;
-// constexpr float SIGMA_SB   = 5.67037442E-05;
-// constexpr float SIGMA_T    = 6.65245873E-25;
+// constexpr double HPLANCK    = 6.62607015E-27;
+// constexpr double JY         = 1.00000000E-23;
+// constexpr double KBOLTZ     = 1.38064900E-16;
+// constexpr double EVOLT      = 1.60217663E-12;    // Electron Volt
+// constexpr double MELC       = 9.10938370E-28;
+// constexpr double QELC       = 4.80320471E-10;
+// constexpr double SIGMA_SB   = 5.67037442E-05;
+// constexpr double SIGMA_T    = 6.65245873E-25;
 

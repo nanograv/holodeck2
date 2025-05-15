@@ -8,3 +8,4 @@ NOTE: if the shared library is built against a different version of python, the 
 
 ## To-Do
 [ ] Add wrapper python-module that provides access to cpp module.  Use this to ensure module is loaded correctly (i.e. from same environment as library was built under).
+[ ] Use `doctest` for C++ unit testing!

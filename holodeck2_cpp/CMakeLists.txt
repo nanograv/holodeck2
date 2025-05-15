@@ -7,7 +7,7 @@
 #
 # -- Presets:
 # cmake --preset default
-# cmake --build --preset default  [--clean-first]
+# cmake --build --preset default  [--clean-first] [-DDEBUG_MODE=ON]
 #
 # ==============================================================================
 
@@ -16,9 +16,21 @@ project(holodeck2_cpp LANGUAGES CXX)
 
 # Force x86_64 if you're using x86_64 Python (like Anaconda)
 set(CMAKE_OSX_ARCHITECTURES "x86_64")
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 
 set(DATA_PATH "${CMAKE_CURRENT_SOURCE_DIR}/data")
+
+
+# Use -DDEBUG_MODE=ON to enable debug mode
+# option(DEBUG_MODE "Enable debug mode macros" OFF)
+
+# if(DEBUG_MODE)
+#     add_compile_definitions(DEBUG)
+# endif()
+
+add_compile_definitions(DEBUG)
+
+
 
 # ==============================================================================
 # ====    Find Dependencies    ====

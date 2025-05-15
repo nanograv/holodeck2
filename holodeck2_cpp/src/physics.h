@@ -8,20 +8,20 @@
 
 namespace physics {
 
-    inline float _C5 = pow(SPLC, 5);
-    inline float _G3 = pow(NWTG, 3);
+    inline double _C5 = pow(SPLC, 5);
+    inline double _G3 = pow(NWTG, 3);
 
-    inline float _GW_CONST = (64.0 / 5.0) * _G3 / _C5;
+    inline double _GW_CONST = (64.0 / 5.0) * _G3 / _C5;
     // [Sesana2004]_ Eq.36
-    inline float _GW_SRC_CONST = (8.0 / sqrt(10.0)) * pow(NWTG, 5.0/3.0) * pow(PI, 2.0/3.0) / pow(SPLC, 4);
-    inline float _GW_DADT_SEP_CONST = - (64.0 / 5.0) * _G3 / _C5;
-    inline float _GW_DEDT_ECC_CONST = - (304.0 / 15.0) * _G3 / _C5;
+    inline double _GW_SRC_CONST = (8.0 / sqrt(10.0)) * pow(NWTG, 5.0/3.0) * pow(PI, 2.0/3.0) / pow(SPLC, 4);
+    inline double _GW_DADT_SEP_CONST = - (64.0 / 5.0) * _G3 / _C5;
+    inline double _GW_DEDT_ECC_CONST = - (304.0 / 15.0) * _G3 / _C5;
     // [EN2007]_, Eq.2.2
-    inline float _GW_LUM_CONST = (32.0 / 5.0) * pow(NWTG, 7.0/3.0) / _C5;
+    inline double _GW_LUM_CONST = (32.0 / 5.0) * pow(NWTG, 7.0/3.0) / _C5;
     // [EN2007]_, Eq.2.9
-    inline float _GW_TAU_CONST = (5.0 / 96.0) * pow(NWTG, -5.0/3.0) * _C5 * pow(TWO_PI, -8.0/3.0);
+    inline double _GW_TAU_CONST = (5.0 / 96.0) * pow(NWTG, -5.0/3.0) * _C5 * pow(TWO_PI, -8.0/3.0);
 
-    // float _AGE_UNIVERSE_GYR = cosmo.age(0.0).to('Gyr').value;  // [Gyr]  ~ 13.78
+    // double _AGE_UNIVERSE_GYR = cosmo.age(0.0).to('Gyr').value;  // [Gyr]  ~ 13.78
 
 
 
@@ -279,14 +279,14 @@ namespace physics {
 
         Arguments
         ---------
-        dur : float,
+        dur : double,
             Total observing duration, which determines the minimum sensitive frequency, ``1/dur``.
             Typically `dur` should be given in units of [sec], such that the returned frequencies are
             in units of [1/sec] = [Hz]
         num : int,
             Number of frequency bins.  If `cad` is not None, then the number of frequency bins is
             determined by `cad` and the `num` value is disregarded.
-        cad : float or `None`,
+        cad : double or `None`,
             Cadence of observations, which determines the maximum sensitive frequency (i.e. the Nyquist
             frequency).  If `cad` is not given, then `num` frequency bins are constructed.
 
@@ -328,7 +328,7 @@ namespace physics {
             Mass of first (either) component of binary [grams].
         m2 : array_like,
             Mass of second (other) component of binary [grams].
-        factor : float,
+        factor : double,
             Factor by which to multiple the Schwarzschild radius to define the ISCO.
             3.0 for a non-spinning black-hole.
 

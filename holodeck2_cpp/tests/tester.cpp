@@ -2,8 +2,9 @@
  *
  */
 
-#include "test_tools.h"
+#include "../src/utils.h"
 #include "test_cosmology.h"
+#include "test_tools.h"
 
 int main() {
     printf(" ====    tester::main()\n");
@@ -14,13 +15,13 @@ int main() {
     double b = a + diff;
 
     printf("Test atol\n");
-    check(is_almost_equal(a, b, 1.01*diff, 0.0), "Test 1 failed: a and b should be almost equal");
-    check(!is_almost_equal(a, b, 0.99*diff, 0.0), "Test 2 failed: a and b should not be almost equal");
+    check(utils::is_almost_equal(a, b, 1.01*diff, 0.0), "Test 1 failed: a and b should be almost equal");
+    check(!utils::is_almost_equal(a, b, 0.99*diff, 0.0), "Test 2 failed: a and b should not be almost equal");
 
     printf("Test rtol\n");
     b = a + diff * a;
-    check(is_almost_equal(a, b, 0.0, 1.01*diff), "Test 3 failed: a and b should be almost equal");
-    check(!is_almost_equal(a, b, 0.0, 0.99*diff), "Test 4 failed: a and b should not be almost equal");
+    check(utils::is_almost_equal(a, b, 0.0, 1.01*diff), "Test 3 failed: a and b should be almost equal");
+    check(!utils::is_almost_equal(a, b, 0.0, 0.99*diff), "Test 4 failed: a and b should not be almost equal");
     std::cout << "✅ assert_almost_equal passed.\n";
 
     // Add more tests as needed

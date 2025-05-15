@@ -5,15 +5,18 @@
 #ifndef COSMOLOGY_H
 #define COSMOLOGY_H
 
-#include <iostream>
+// #include <iostream>
 #include <fstream>
-#include <stdexcept>
-#include <string>
 #include <filesystem>
-#include <sstream>
+// #include <stdexcept>
+#include <sstream>   // for std::istringstream
 #include <string>
-#include <iomanip>
-#include <cstdlib>
+// #include <iomanip>
+// #include <cstdlib>
+#include <format>
+
+#include "utils.h"
+
 
 namespace fs = std::filesystem;
 
@@ -29,40 +32,41 @@ public:
         load_cosmo_data(full_path.string());
         printf(
             "Loaded grid with %d points, redshifts between [%.2e, %.2e]\n",
-            grid_size, redshift[0], redshift[grid_size-1]
+            grid_size, pow(10.0, redz_log10[0]), pow(10.0, redz_log10[grid_size-1])
         );
     };
 
-
-
-
     ~Cosmology() {
-        delete[] redshift;
-        delete[] scafa;
-        delete[] dcom;
-        delete[] vcom;
-        delete[] tlook;
-        delete[] efunc;
+        delete[] redz_log10;
+        delete[] scafa_log10;
+        delete[] dcom_log10;
+        delete[] vcom_log10;
+        delete[] tlook_log10;
+        delete[] efunc_log10;
     }
+
+    double dcom_from_redz(double redz) { return value_from_redz(redz, dcom_log10); }
+    double vcom_from_redz(double redz) { return value_from_redz(redz, vcom_log10); }
+    double tlook_from_redz(double redz) { return value_from_redz(redz, tlook_log10); }
 
 private:
     // Cosmology parameters
-    float H0;       // Hubble constant at z=0   [km/s/Mpc]
-    float Omega_m0; // Matter density parameter
-    float Omega_l0; // Dark energy density parameter
-    float Omega_b0; // Baryon density parameter
+    double H0;       // Hubble constant at z=0   [km/s/Mpc]
+    double Omega_m0; // Matter density parameter
+    double Omega_l0; // Dark energy density parameter
+    double Omega_b0; // Baryon density parameter
     int grid_size;  // Size of the interpolation grid
 
     // Derived parameters
-    // float H0_cgs;
-    // float H0_inv;
-    float dlog10z;
-    float *redshift;
-    float *scafa;
-    float *dcom;
-    float *vcom;
-    float *tlook;
-    float *efunc;
+    // double H0_cgs;
+    // double H0_inv;
+    double dlog10z;
+    double *redz_log10;
+    double *scafa_log10;
+    double *dcom_log10;
+    double *vcom_log10;
+    double *tlook_log10;
+    double *efunc_log10;
 
     void load_cosmo_data(const std::string& path) {
         std::ifstream file(path);
@@ -86,42 +90,105 @@ private:
         if (grid_size <= 0) throw std::runtime_error("Failed to parse N from metadata");
 
         // Allocate arrays
-        redshift = new float[grid_size];
-        scafa    = new float[grid_size];
-        dcom     = new float[grid_size];
-        vcom     = new float[grid_size];
-        tlook    = new float[grid_size];
-        efunc    = new float[grid_size];
+        redz_log10 = new double[grid_size];
+        scafa_log10    = new double[grid_size];
+        dcom_log10     = new double[grid_size];
+        vcom_log10     = new double[grid_size];
+        tlook_log10    = new double[grid_size];
+        efunc_log10    = new double[grid_size];
 
         // --- Skip column header line
         std::getline(file, line);
 
         // --- Read data lines
+        double temp;
         for (int i = 0; i < grid_size; i++) {
             if (!std::getline(file, line)) throw std::runtime_error("Unexpected EOF before N lines");
 
             std::istringstream ss(line);
-            float z, a, d, v, t, e;
+            double z, a, d, v, t, e;
             if (!(ss >> z >> a >> d >> v >> t >> e)) {
                 throw std::runtime_error("Failed to parse line: " + line);
             }
 
-            redshift[i] = z;
-            scafa[i]    = a;
-            dcom[i]     = d;
-            vcom[i]     = v;
-            tlook[i]    = t;
-            efunc[i]    = e;
+            redz_log10[i] = log10(z);
+            scafa_log10[i]    = log10(a);
+            dcom_log10[i]     = log10(d);
+            vcom_log10[i]     = log10(v);
+            tlook_log10[i]    = log10(t);
+            efunc_log10[i]    = log10(e);
 
-            if (i == 1) {
-                dlog10z = log10(redshift[i]) - log10(redshift[i-1]);
-            } else if (i > 1) {
-
+            // Check for evenly spaced grid in log10(z)
+            if (i > 0) {
+                temp = redz_log10[i] - redz_log10[i-1];
+                if (i == 1) {
+                    dlog10z = temp;
+                } else if (i > 1){
+                    if (!utils::is_almost_equal(temp, dlog10z)) {
+                        std::string msg = std::format(
+                            "Grid is not evenly spaced in log10(z)!  {:.8e} vs. {:.8e} at i={:d}\n",
+                            dlog10z, temp, i
+                        );
+                        throw std::runtime_error(msg);
+                    }
+                }
             }
 
         } // i
 
     }
+
+    double lin_interp_at_index(double target, int idx, double* xx, double* yy) {
+        // Linear interpolation in log10 space
+        double x1 = xx[idx];
+        double y1 = yy[idx];
+#ifdef DEBUG
+        if (idx < 0 || idx >= grid_size - 1) {
+            std::string msg = std::format(
+                "Index out of range for interpolation! idx={:d} vs. [0, {:d}]",
+                idx, grid_size-1
+            );
+            throw std::out_of_range(msg);
+        }
+        if (target < x1 || target > xx[idx + 1]) {
+            std::string msg = std::format(
+                "Target value out of range for interpolation! x=[{:.8e}, {:.8e}] vs. {:.8e}",
+                x1, xx[idx+1], target
+            );
+            throw std::out_of_range(msg);
+        }
+#endif
+        return y1 + (yy[idx + 1] - y1) * (target - x1) / (xx[idx + 1] - x1);
+    }
+
+    int find_lower_index_uniform_redz_log10(double zlog10) {
+        int idx = (int)floor((zlog10 - redz_log10[0]) / dlog10z);
+        #ifdef DEBUG
+        if (idx < 0 || idx >= grid_size) {
+            std::string msg = std::format(
+                "Index out of range for interpolation! idx={:d} vs. [0, {:d}]",
+                idx, grid_size-1
+            );
+            throw std::out_of_range(msg);
+        }
+        #endif
+        return idx;
+    }
+
+    // int brute_force_lower_index(double target, double* xx) {
+    //     int idx = 0;
+    //     while (idx < grid_size && xx[idx] < target) {
+    //         idx++;
+    //     }
+    //     return idx - 1;
+    // }
+
+    double value_from_redz(double redz, double* values_log10) {
+        double zlog10 = log10(redz);
+        int idx = find_lower_index_uniform_redz_log10(zlog10);
+        return pow(10.0, lin_interp_at_index(zlog10, idx, redz_log10, values_log10));
+    }
+
 };
 
 

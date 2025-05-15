@@ -16,15 +16,15 @@
 class PTA {
 
 public:
-    float obs_dur;
+    double obs_dur;
     int num_freqs;
-    float* fobs_cents;
-    float* fobs_edges;
+    double* fobs_cents;
+    double* fobs_edges;
 
-    PTA(float dur=20.0, float nfreqs=30) : obs_dur(dur), num_freqs(nfreqs) {
-        fobs_cents = (float*)malloc(num_freqs * sizeof(float));
-        fobs_edges = (float*)malloc((num_freqs+1) * sizeof(float));
-        float df = 1.0 / obs_dur;
+    PTA(double dur=20.0, double nfreqs=30) : obs_dur(dur), num_freqs(nfreqs) {
+        fobs_cents = (double*)malloc(num_freqs * sizeof(double));
+        fobs_edges = (double*)malloc((num_freqs+1) * sizeof(double));
+        double df = 1.0 / obs_dur;
         fobs_edges[0] = df * 0.5;
         for (int ii = 0; ii < num_freqs; ii++) {
             fobs_cents[ii] = df * (ii + 1);
@@ -32,8 +32,8 @@ public:
         }
     };
 
-    // float* fobs_cents() { return fobs_cents; };
-    // float* fobs_edges() { return fobs_edges;};
+    // double* fobs_cents() { return fobs_cents; };
+    // double* fobs_edges() { return fobs_edges;};
 
     ~PTA() {
         free(fobs_cents);
@@ -41,8 +41,8 @@ public:
     };
 
 // private:
-//     float* fobs_cents;
-//     float* fobs_edges;
+//     double* fobs_cents;
+//     double* fobs_edges;
 
 };
 
@@ -53,18 +53,18 @@ public:
     int num_reals;
     int num_louds;
 
-    float** gwb;
-    float*** cws;
+    double** gwb;
+    double*** cws;
 
     GravWaves(PTA *pta, int nreals = 100, int nloud = 5) : pta(pta), num_reals(nreals), num_louds(nloud) {
         num_freqs = pta->num_freqs;
-        gwb = (float** )malloc(num_freqs * sizeof(float*));
-        cws = (float*** )malloc(num_freqs * sizeof(float**));
+        gwb = (double** )malloc(num_freqs * sizeof(double*));
+        cws = (double*** )malloc(num_freqs * sizeof(double**));
         for (int ii = 0; ii < num_freqs; ii++) {
-            gwb[ii] = (float* )malloc(num_reals * sizeof(float));
-            cws[ii] = (float** )malloc(num_reals * sizeof(float*));
+            gwb[ii] = (double* )malloc(num_reals * sizeof(double));
+            cws[ii] = (double** )malloc(num_reals * sizeof(double*));
             for (int jj = 0; jj < num_reals; jj++) {
-                cws[ii][jj] = (float* )malloc(num_louds * sizeof(float));
+                cws[ii][jj] = (double* )malloc(num_louds * sizeof(double));
             }
         }
     }
@@ -91,62 +91,62 @@ class SAM {
 public:
     int num_mass;
     int num_redz;
-    float *mass_edges;
-    float *redz_edges;
-    float *mass_cents;
-    float *redz_cents;
+    double *mass_edges;
+    double *redz_edges;
+    double *mass_cents;
+    double *redz_cents;
 
 //! FIX: make these private
 // private:
     // Grid
-    float mass_pars[3] = {1E6, 1E12, 101};
-    float redz_pars[3] = {1E-2, 1E1, 91};
+    double mass_pars[3] = {1E6, 1E12, 101};
+    double redz_pars[3] = {1E-2, 1E1, 91};
 
     // GSMF - Double Schechter
-    float gsmf_log10_phi1_z0  = -2.383;
-    float gsmf_log10_phi1_z1  = -0.264;
-    float gsmf_log10_phi1_z2  = -0.107;
-    float gsmf_log10_phi2_z0  = -2.818;
-    float gsmf_log10_phi2_z1  = -0.368;
-    float gsmf_log10_phi2_z2  = +0.046;
-    float gsmf_log10_mchar_z0 = +10.767;
-    float gsmf_log10_mchar_z1 = +0.124;
-    float gsmf_log10_mchar_z2 = -0.033;
-    float gsmf_alpha1 = -0.28;
-    float gsmf_alpha2 = -1.48;
+    double gsmf_log10_phi1_z0  = -2.383;
+    double gsmf_log10_phi1_z1  = -0.264;
+    double gsmf_log10_phi1_z2  = -0.107;
+    double gsmf_log10_phi2_z0  = -2.818;
+    double gsmf_log10_phi2_z1  = -0.368;
+    double gsmf_log10_phi2_z2  = +0.046;
+    double gsmf_log10_mchar_z0 = +10.767;
+    double gsmf_log10_mchar_z1 = +0.124;
+    double gsmf_log10_mchar_z2 = -0.033;
+    double gsmf_alpha1 = -0.28;
+    double gsmf_alpha2 = -1.48;
 
     // GMR - Illustris; Galaxy Merger Rate
-    float gmr_norm0_log10 = -2.2287;          // -2.2287 ± 0.0045    A0 [log10(A*Gyr)]
-    float gmr_normz       = +2.4644;          // +2.4644 ± 0.0128    eta
-    float gmr_malpha0     = +0.2241;          // +0.2241 ± 0.0038    alpha0
-    float gmr_malphaz     = -1.1759;          // -1.1759 ± 0.0316    alpha1
-    float gmr_mdelta0     = +0.7668;          // +0.7668 ± 0.0202    delta0
-    float gmr_mdeltaz     = -0.4695;          // -0.4695 ± 0.0440    delta1
-    float gmr_qgamma0     = -1.2595;          // -1.2595 ± 0.0026    beta0
-    float gmr_qgammaz     = +0.0611;          // +0.0611 ± 0.0021    beta1
-    float gmr_qgammam     = -0.0477;          // -0.0477 ± 0.0013    gamma
-    float gmr_mref_delta  = 2.0E11;           // fixed value [Msol]
-    float gmr_mref_gamma  = 1.0E10;           // fixed value [Msol]
+    double gmr_norm0_log10 = -2.2287;          // -2.2287 ± 0.0045    A0 [log10(A*Gyr)]
+    double gmr_normz       = +2.4644;          // +2.4644 ± 0.0128    eta
+    double gmr_malpha0     = +0.2241;          // +0.2241 ± 0.0038    alpha0
+    double gmr_malphaz     = -1.1759;          // -1.1759 ± 0.0316    alpha1
+    double gmr_mdelta0     = +0.7668;          // +0.7668 ± 0.0202    delta0
+    double gmr_mdeltaz     = -0.4695;          // -0.4695 ± 0.0440    delta1
+    double gmr_qgamma0     = -1.2595;          // -1.2595 ± 0.0026    beta0
+    double gmr_qgammaz     = +0.0611;          // +0.0611 ± 0.0021    beta1
+    double gmr_qgammam     = -0.0477;          // -0.0477 ± 0.0013    gamma
+    double gmr_mref_delta  = 2.0E11;           // fixed value [Msol]
+    double gmr_mref_gamma  = 1.0E10;           // fixed value [Msol]
 
     // M-MBulge
-    float mmbulge_mass_amp_log10 = 8.69;      // 8.69 ± 0.05  [log10(M/Msol)]  approximate uncertainties!
-    float mmbulge_mass_ref = 1E11;            // 1E11 Msol
-    float mmbulge_plaw = 1.17;                // 1.17 ± 0.08
-    float mmbulge_scatter_dex = 0.28;         // scatter stdev in dex
-    float mmbulge_bulge_frac = 0.7;
+    double mmbulge_mass_amp_log10 = 8.69;      // 8.69 ± 0.05  [log10(M/Msol)]  approximate uncertainties!
+    double mmbulge_mass_ref = 1E11;            // 1E11 Msol
+    double mmbulge_plaw = 1.17;                // 1.17 ± 0.08
+    double mmbulge_scatter_dex = 0.28;         // scatter stdev in dex
+    double mmbulge_bulge_frac = 0.7;
 
     SAM() {
         num_mass = mass_pars[2];
         num_redz = redz_pars[2];
-        mass_cents = (float*)malloc(num_mass * sizeof(float));
-        redz_cents = (float*)malloc(num_redz * sizeof(float));
-        mass_edges = (float*)malloc((num_mass+1) * sizeof(float));
-        redz_edges = (float*)malloc((num_redz+1) * sizeof(float));
+        mass_cents = (double*)malloc(num_mass * sizeof(double));
+        redz_cents = (double*)malloc(num_redz * sizeof(double));
+        mass_edges = (double*)malloc((num_mass+1) * sizeof(double));
+        redz_edges = (double*)malloc((num_redz+1) * sizeof(double));
 
         // ---- Initialize mass edges and centers
 
-        float dlog10m = (log10(mass_pars[1]) - log10(mass_pars[1])) / num_mass;
-        float next, prev = log10(mass_pars[0]);
+        double dlog10m = (log10(mass_pars[1]) - log10(mass_pars[1])) / num_mass;
+        double next, prev = log10(mass_pars[0]);
         mass_edges[0] = pow(10.0, prev);
         for (int ii = 0; ii < num_mass; ii++) {
             next = prev + dlog10m;
@@ -155,7 +155,7 @@ public:
         }
 
         // ---- Initialize redshift edges and centers
-        float dlog10z = (log10(redz_pars[1]) - log10(redz_pars[0])) / num_redz;
+        double dlog10z = (log10(redz_pars[1]) - log10(redz_pars[0])) / num_redz;
         prev = log10(redz_pars[0]);
         redz_edges[0] = pow(10.0, prev);
         for (int ii = 0; ii < num_redz; ii++) {
