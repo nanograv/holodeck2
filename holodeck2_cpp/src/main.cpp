@@ -18,34 +18,36 @@ int main(int argc, char *argv[]) {
 
     // ---- Setup / Initialize PTA, GravWaves, and SAM
 
-    PTA* pta = new PTA(20.0, 30);
+    Cosmology cosmo;
+
+    // PTA* pta = new PTA(20.0, 30);
+    PTA pta(20.0, 30);
     printf(
         "Initialized PTA with %d frequencies between [%.2e, %.2e] Hz\n",
-        pta->num_freqs, pta->fobs_cents[0], pta->fobs_edges[pta->num_freqs-1]
+        pta.num_freqs, pta.fobs_cents[0], pta.fobs_edges[pta.num_freqs-1]
     );
 
-    GravWaves* gw = new GravWaves(pta, 10, 5);
+    // GravWaves* gw = new GravWaves(&pta, 10, 5);
+    GravWaves gw(&pta, 10, 5);
     printf(
         "Initialized GravWaves with %d freqs, %d reals, %d louds\n",
-        gw->num_freqs, gw->num_reals, gw->num_louds
+        gw.num_freqs, gw.num_reals, gw.num_louds
     );
 
-    SAM* sam = new SAM();
+    // SAM* sam = new SAM(&cosmo);
+    SAM sam(&cosmo);
     printf(
         "Initialized SAM with %d mass bins, %d redshift bins\n",
-        sam->num_mass, sam->num_redz
+        sam.num_mass, sam.num_redz
     );
 
     // ---- Run Calculations
 
     printf("Calculating gravitational waves...\n");
-    grav_waves(pta, gw, sam);
+    sam.grav_waves(pta, gw);
 
     printf("Done.\n\n");
 
     // ---- Cleanup
 
-    delete(pta);
-    delete(gw);
-    delete(sam);
 }

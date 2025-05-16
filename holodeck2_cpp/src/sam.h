@@ -8,9 +8,15 @@
 
 #include <cstdlib> // For malloc and free
 #include <cmath>
+#include <random>
 
 #include "constants.h"
 #include "physics.h"
+#include "cosmology.h"
+
+constexpr double FOUR_PI_C_MPC = 4 * PI * SPLC / MPC;    // 4*pi*c   [Mpc/s]
+
+inline std::default_random_engine rng(42);          // RNG with fixed seed
 
 
 class PTA {
@@ -32,17 +38,10 @@ public:
         }
     };
 
-    // double* fobs_cents() { return fobs_cents; };
-    // double* fobs_edges() { return fobs_edges;};
-
     ~PTA() {
         free(fobs_cents);
         free(fobs_edges);
     };
-
-// private:
-//     double* fobs_cents;
-//     double* fobs_edges;
 
 };
 
@@ -57,6 +56,7 @@ public:
     double*** cws;
 
     GravWaves(PTA *pta, int nreals = 100, int nloud = 5) : pta(pta), num_reals(nreals), num_louds(nloud) {
+        this->pta = pta;
         num_freqs = pta->num_freqs;
         gwb = (double** )malloc(num_freqs * sizeof(double*));
         cws = (double*** )malloc(num_freqs * sizeof(double**));
@@ -103,15 +103,9 @@ public:
     double redz_pars[3] = {1E-2, 1E1, 91};
 
     // GSMF - Double Schechter
-    double gsmf_log10_phi1_z0  = -2.383;
-    double gsmf_log10_phi1_z1  = -0.264;
-    double gsmf_log10_phi1_z2  = -0.107;
-    double gsmf_log10_phi2_z0  = -2.818;
-    double gsmf_log10_phi2_z1  = -0.368;
-    double gsmf_log10_phi2_z2  = +0.046;
-    double gsmf_log10_mchar_z0 = +10.767;
-    double gsmf_log10_mchar_z1 = +0.124;
-    double gsmf_log10_mchar_z2 = -0.033;
+    double gsmf_log10_phi1[3] = {-2.383, -0.264, -0.107};
+    double gsmf_log10_phi2[3] = {-2.818, -0.368, +0.046};
+    double gsmf_log10_mchar[3] = {+10.767, +0.124, -0.033};
     double gsmf_alpha1 = -0.28;
     double gsmf_alpha2 = -1.48;
 
@@ -135,7 +129,9 @@ public:
     double mmbulge_scatter_dex = 0.28;         // scatter stdev in dex
     double mmbulge_bulge_frac = 0.7;
 
-    SAM() {
+    SAM(Cosmology* cosmo) {
+        this->cosmo = cosmo;
+
         num_mass = mass_pars[2];
         num_redz = redz_pars[2];
         mass_cents = (double*)malloc(num_mass * sizeof(double));
@@ -155,6 +151,7 @@ public:
         }
 
         // ---- Initialize redshift edges and centers
+
         double dlog10z = (log10(redz_pars[1]) - log10(redz_pars[0])) / num_redz;
         prev = log10(redz_pars[0]);
         redz_edges[0] = pow(10.0, prev);
@@ -166,6 +163,20 @@ public:
 
     }
 
+    double dngal_to_dnmbh(double mbh1, double mbh2, double mstar_tot, double mstar_rat, double rz);
+
+    double gmr_illustris(double mstar_tot, double mstar_rat, double rz);
+
+    void grav_waves(PTA &pta, GravWaves &gw);
+
+    double gsmf_double_schechter(double mstar, double redz);
+
+    double gsmf_single_schechter(double mstar, double redz, double phi_terms[3], double mchar_terms[3], double alpha);
+
+    double mmbulge_mstar_from_mbh(double mbh);
+
+    double number_density(double mbh1, double mbh2, double rz, bool return_galgal = false);
+
     ~SAM() {
         free(mass_cents);
         free(redz_cents);
@@ -173,106 +184,10 @@ public:
         free(redz_edges);
     };
 
-    /*
+private:
+    Cosmology* cosmo;
 
-    @classmethod
-    def _gsmf_single_schechter(self, mstar, redz, phi_terms, mchar_terms, alpha):
-        rz2 = redz**2
-
-        phi = np.power(10.0, phi_terms[0] + phi_terms[1] * redz + phi_terms[2] * rz2)
-        mchar = MSOL * np.power(10.0, mchar_terms[0] + mchar_terms[1] * redz + mchar_terms[2] * rz2)
-        alpha = alpha
-
-        xx = mstar / mchar
-        rv = np.log(10.0) * phi * np.power(xx, 1.0 + alpha) * np.exp(-xx)
-        return rv
-
-    def _mstar_from_mbh(self, mbh, mass_amp_log10, mass_ref, plaw, bulge_mfrac):
-
-        # get bulge mass
-        mstar = (np.log10(mbh) - mass_amp_log10) / plaw
-        mstar = mass_ref * np.power(10.0, mstar)
-        # convert from bulge-mass to stellar-mass
-        mstar = mstar / bulge_mfrac
-        return mstar
-
-    def number_density_3d(self, return_galgal=False):
-        edges = self.edges_3d
-        mbh1, mbh2, rz = self.grid3d
-
-        # ---- Get galaxy stellar masses
-
-        # NOTE: assume primary MBH ==> primary galaxy mass ==> GSMF
-        ms1 = self._mstar_from_mbh(
-            mbh1, self.mmbulge_mass_amp_log10, self.mmbulge_mass_ref, self.mmbulge_plaw, self.mmbulge_bulge_frac
-        )
-
-        # ---- Get galaxy stellar mass function
-
-        phi = self._gsmf_single_schechter(ms1, rz, self.gsmf_log10_phi1, self.gsmf_log10_mchar, self.gsmf_alpha1)
-        phi += self._gsmf_single_schechter(ms1, rz, self.gsmf_log10_phi2, self.gsmf_log10_mchar, self.gsmf_alpha2)
-
-        # ---- Get galaxy-galaxy merger rate
-
-        ms2 = self._mstar_from_mbh(
-            mbh1, self.mmbulge_mass_amp_log10, self.mmbulge_mass_ref, self.mmbulge_plaw, self.mmbulge_bulge_frac
-        )
-        mstar_tot = ms1 + ms2
-        mstar_rat = ms2 / ms1
-        zplus1 = 1.0 + rz
-
-        norm = ((10.0 ** self.gmr_norm0_log10) / GYR) * np.power(zplus1, self.gmr_normz)
-        malpha = self.gmr_malpha0 * np.power(zplus1, self.gmr_malphaz)
-        mdelta = self.gmr_mdelta0 * np.power(zplus1, self.gmr_mdeltaz)
-        qgamma = self.gmr_qgamma0 * np.power(zplus1, self.gmr_qgammaz)
-        qgamma = qgamma + self.gmr_qgammam * np.log10(mstar_tot/self.gmr_mref_gamma)
-
-        gmr = (
-            norm *
-            np.power(mstar_tot/self.gmr_mref_gamma, malpha) *
-            np.power(1.0 + mstar_tot/self.gmr_mref_delta, mdelta) *
-            np.power(mstar_rat, qgamma)
-        )
-
-        # ---- Get galaxy-galaxy merger, number density
-
-        ndens = phi * gmr * cosmo.dtdz(self.redz)[np.newaxis, np.newaxis, :]
-
-        # Return only galaxy-galaxy merger rate
-        if return_galgal:
-            edges = [ms1, ms2, rz]
-            return edges, ndens
-
-        # ---- Convert from galaxy-galaxy to MBH-MBH merger rate
-
-        # we want ``dn_mbhb / [dlog10(M_bh) dq_bh qz]``
-        # so far we have ``dn_gal / [dlog10(M_gal) dq_gal dz]``
-
-        # dn / [dM dq dz] = (dn_gal / [dM_gal dq_gal dz]) * (dM_gal/dM_bh) * (dq_gal / dq_bh)
-        dqbh_dqgal = self.mmbulge_plaw * np.power(mstar_rat, self.mmbulge_plaw - 1.0)
-        # (dMstar-pri / dMbh-pri) * (dMbh-pri/dMbh-tot) = (dMstar-pri / dMstar-tot) * (dMstar-tot/dMbh-tot)
-        # ==> (dMstar-tot/dMbh-tot) = (dMstar-pri / dMbh-pri) * (dMbh-pri/dMbh-tot) / (dMstar-pri / dMstar-tot)
-        #                           = (dMstar-pri / dMbh-pri) * (1 / (1+q_bh)) / (1 / (1+q_star))
-        #                           = (dMstar-pri / dMbh-pri) * ((1+q_star) / (1+q_bh))
-        dmstar_dmbh_pri = (ms1 / (self.mmbulge_plaw * mbh1))
-        #! ==== FIX: this allows for q>1 ! ====
-        qterm = (1.0 + mstar_rat) / (1.0 + (mbh2/mbh1))
-        ndens *= ((mbh1 + mbh2) / mstar_tot) * (dmstar_dmbh_pri * qterm / dqbh_dqgal)
-
-        # ---- Add scatter from the M-Mbulge relation
-
-        #! =====================================================================
-        #! FIX: still need to add scatter
-        print("\n!!NOT ADDING SCATTER!!\n")
-        # ndens = add_scatter_to_masses(self.mtot, self.mrat, ndens, scatter, log=log)
-        #! =====================================================================
-
-        return edges, ndens
-    */
 };
-
-
-void grav_waves(PTA* pta, GravWaves *gw, SAM* sam);
 
 
 #endif  // SAM_H
