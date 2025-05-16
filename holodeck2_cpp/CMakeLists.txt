@@ -7,7 +7,7 @@
 #
 # -- Presets:
 # cmake --preset default
-# cmake --build --preset default  [--clean-first] [-DDEBUG_MODE=ON]
+# cmake --build --preset default  [--clean-first]
 #
 # ==============================================================================
 
@@ -21,13 +21,6 @@ set(CMAKE_CXX_STANDARD 20)
 set(DATA_PATH "${CMAKE_CURRENT_SOURCE_DIR}/data")
 
 
-# Use -DDEBUG_MODE=ON to enable debug mode
-# option(DEBUG_MODE "Enable debug mode macros" OFF)
-
-# if(DEBUG_MODE)
-#     add_compile_definitions(DEBUG)
-# endif()
-
 add_compile_definitions(DEBUG)
 
 
@@ -38,16 +31,6 @@ add_compile_definitions(DEBUG)
 
 # Get Python include path and extension suffix
 find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
-
-# find_package(Qt6 REQUIRED COMPONENTS
-#     Widgets  # Covers QApplication, QWidget, QTimer
-#     Core     # Covers QTime
-#     Gui      # Covers QPainter
-# )
-
-# find_package(Boost REQUIRED COMPONENTS
-#     program_options      # for parsing configuration input files
-# )
 
 
 # ==============================================================================
@@ -92,18 +75,13 @@ add_custom_command(TARGET holodeck2_cpp POST_BUILD
 add_executable(holodeck2cpp
     src/main.cpp
     src/sam.cpp
+    src/physics.cpp
+    src/cosmology.cpp
 )
 
-# target_link_libraries(warp PRIVATE
-#     # Qt6
-#     Qt6::Widgets
-#     Qt6::Core
-#     Qt6::Gui
-#     # Boost
-#     Boost::program_options
-# )
+target_compile_definitions(holodeck2cpp PUBLIC PATH_DATA_DIR="${DATA_PATH}")
 
-
+# Make symlink to executable in CWD
 add_custom_command(TARGET holodeck2cpp POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E create_symlink
             $<TARGET_FILE:holodeck2cpp>
@@ -115,31 +93,8 @@ add_custom_command(TARGET holodeck2cpp POST_BUILD
 
 add_executable(tester
     tests/tester.cpp
+    src/cosmology.cpp
+    src/physics.cpp
 )
 
-# target_link_libraries(tester PRIVATE holodeck2_cpp)
 target_compile_definitions(tester PUBLIC PATH_DATA_DIR="${DATA_PATH}")
-
-# target_compile_definitions(tester PRIVATE
-#     PATH_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data"
-# )
-
-
-# target_include_directories(test_cosmology PRIVATE include)
-# target_link_libraries(test_cosmology PRIVATE cosmo_core_lib)  # replace with actual target
-
-
-
-# Add directories where *header files* can be found for a particular target
-# target_include_directories(warp PUBLIC include)
-
-# ---- Variables
-# set(MY_VARIABLE "value")
-# Use variable as${MY_VARIABLE}.
-
-# ---- Modify C code with CMake variables
-# configure_file (
-#     "${PROJECT_SOURCE_DIR}/include/My/Version.h.in"
-#     "${PROJECT_BINARY_DIR}/include/My/Version.h"
-# )
-
