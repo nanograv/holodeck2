@@ -5,12 +5,12 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <iostream>
-#include "test.h"
+// #include "test.h"
 
 
 typedef struct {
     PyObject_HEAD
-    Test *test;
+    // Test *test;
 } CustomObject;
 
 
