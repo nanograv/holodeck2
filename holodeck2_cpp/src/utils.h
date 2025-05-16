@@ -5,12 +5,27 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 
 using namespace std;
 
 namespace utils {
+
+    template <typename T>
+    int* argsort(const T* array, size_t size) {
+        int* indices = new int[size];
+        for (int i = 0; i < size; ++i)
+            indices[i] = i;
+
+        std::sort(
+            indices, indices + size,
+            [&](size_t i, size_t j) { return array[i] < array[j]; }
+        );
+
+        return indices;
+    }
 
     inline bool is_almost_equal(double a, double b, double atol = 1E-8, double rtol = 1E-6) {
         double rval;
@@ -27,6 +42,77 @@ namespace utils {
         // #endif
         return (fabs(a - b) <= (atol + rtol * rval));
     }
+
+    /*
+    !NOT WORKING!
+    inline double* quantiles(
+        double* values, int num_vals, double* percs, int num_percs,
+        double* weights = nullptr, bool values_sorted = false
+    ) {
+
+        int* indices;
+        if (values_sorted) {
+            indices = new int[num_vals];
+            for (int i = 0; i < num_vals; ++i) {
+                indices[i] = i;
+            }
+        } else {
+            indices = argsort(values, num_vals);
+        }
+
+        // printf("quantiles(): created sorted indices.\n");
+
+        // Calculate cumulative weights
+        double* cum_weights = new double[num_vals];
+        cum_weights[0] = (weights != nullptr) ? weights[0] : 1.0;
+        for (int i = 1; i < num_vals; i++) {
+            // printf("indices[%d]=%d, cum_weights[%d-1]=%.8e\n", i, indices[i], i, cum_weights[i-1]);
+            cum_weights[i] = cum_weights[indices[i - 1]] + ((weights != nullptr) ? weights[indices[i]] : 1.0);
+            #ifdef DEBUG
+            if(values[indices[i]] < values[indices[i - 1]]) {
+                std::string err_msg = std::format(
+                    "Error `quantiles()` - values are not sorted!: values[{:d}]={:.8e} < values[{:d}]={:.8e}\n",
+                    indices[i], values[indices[i]], indices[i-1], values[indices[i-1]]
+                );
+                throw std::runtime_error(err_msg);
+            }
+            #endif
+        }
+
+        // printf("quantiles(): created cumulative weights.\n");
+
+        double total_weight = cum_weights[num_vals - 1];
+        double* quantiles = new double[num_percs];
+        double target;
+        int idx;
+        for (int i = 0; i < num_percs; i++) {
+            target = percs[i] * total_weight;
+            idx = 0;
+            while (idx < num_vals && cum_weights[idx] < target) {
+                idx++;
+            }
+            if (idx == 0) {
+                quantiles[i] = values[indices[0]];
+            } else if (idx == num_vals) {
+                quantiles[i] = values[indices[num_vals - 1]];
+            } else {
+                quantiles[i] = (
+                    values[indices[idx - 1]] + (
+                        (target - cum_weights[idx - 1]) *
+                        (values[idx] - values[idx - 1]) /
+                        (cum_weights[idx] - cum_weights[idx - 1])
+                    )
+                );
+            }
+        }
+
+        // printf("quantiles(): calculated quantiles.\n");
+
+        delete[] indices;
+        delete[] cum_weights;
+        return quantiles;
+    };
+    */
 
 }
 

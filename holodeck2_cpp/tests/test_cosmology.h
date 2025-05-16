@@ -11,7 +11,7 @@
 #include "test_tools.h"
 
 
-void test_interp_values(double redz, double test, double truth, string msg) {
+void test_interp_values(double redz, double truth, double test, const char* msg) {
     if (!utils::is_almost_equal(test, truth, 0.0, 1E-4)) {
         std::string err_msg = std::format(
             "Interpolation test failed on {}!: test={:.8e} vs. truth={:.8e} at redz={:.8e}",
@@ -49,18 +49,49 @@ void test_interpolation(Cosmology &cosmo) {
         1.00000779e+00, 1.00001012e+00, 1.00001059e+00, 1.00001284e+00, 1.00003770e+00,
         1.00192122e+00, 1.00427848e+00, 2.16845714e+00, 1.06159892e+01, 1.36733979e+04
     };
+    double dtdz[]  = {
+        4.45059550e+17, 4.45056116e+17, 4.45055426e+17, 4.45052114e+17, 4.45015436e+17,
+        4.42257586e+17, 4.38861734e+17, 8.54563246e+16, 5.74394415e+15, 3.75923453e+10
+    };
 
     int num_test = std::size(redz);
 
-    double redz_val, dcom_val, test;
+    double test;
+
     for (int ii = 0; ii < num_test; ii++) {
         // `dcom` - comoving distance
-        test_interp_values(redz[ii], dcom[ii], cosmo.dcom_from_redz(redz[ii]), "dcom");
-        // `vcom` - comoving volume
-        test_interp_values(redz[ii], vcom[ii], cosmo.vcom_from_redz(redz[ii]), "vcom");
-        // `tlook` - lookback time
-        test_interp_values(redz[ii], tlook[ii], cosmo.tlook_from_redz(redz[ii]), "tlook");
+        cosmo.dcom_from_redz(redz[ii], &test);
+        test_interp_values(redz[ii], dcom[ii], test, "dcom");
     }
+    std::cout << "✅ dcom interpolation successful.\n";
+
+    for (int ii = 0; ii < num_test; ii++) {
+        // `vcom` - comoving volume
+        cosmo.vcom_from_redz(redz[ii], &test);
+        test_interp_values(redz[ii], vcom[ii], test, "vcom");
+    }
+    std::cout << "✅ vcom interpolation successful.\n";
+
+    for (int ii = 0; ii < num_test; ii++) {
+        // `tlook` - lookback time
+        cosmo.tlook_from_redz(redz[ii], &test);
+        test_interp_values(redz[ii], tlook[ii], test, "tlook");
+    }
+    std::cout << "✅ tlook interpolation successful.\n";
+
+    for (int ii = 0; ii < num_test; ii++) {
+        // `tlook` - lookback time
+        cosmo.efunc_from_redz(redz[ii], &test);
+        test_interp_values(redz[ii], efunc[ii], test, "efunc");
+    }
+    std::cout << "✅ efunc interpolation successful.\n";
+
+    for (int ii = 0; ii < num_test; ii++) {
+        // `tlook` - lookback time
+        cosmo.dtdz_from_redz(redz[ii], &test);
+        test_interp_values(redz[ii], dtdz[ii], test, "dtdz");
+    }
+    std::cout << "✅ dtdz interpolation successful.\n";
 
 }
 
