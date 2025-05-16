@@ -19,10 +19,12 @@
 
 #pragma once
 
+
 // ---- Magic Numbers
 
 constexpr double PI         = 3.14159265E+00;
 constexpr double TWO_PI     = 6.28318531E+00;
+constexpr double LOG10      = 2.30258509E+00;
 
 // ---- Constants
 
@@ -46,12 +48,15 @@ constexpr double YR         = 3.15576000E+07;
 
 // ---- Derived
 
-constexpr double MYR        = 3.15576000E+13;
-constexpr double GYR        = 3.15576000E+16;
+constexpr double MYR        = 1.0E6 * YR;
+constexpr double GYR        = 1.0E9 * YR;
 
-constexpr double KPC        = 3.08567758E+21;
-constexpr double MPC        = 3.08567758E+24;
-constexpr double GPC        = 3.08567758E+27;
+constexpr double KPC        = 1.0E3 * PC;
+constexpr double MPC        = 1.0E6 * PC;
+constexpr double GPC        = 1.0E9 * PC;
+
+constexpr double KM_S_MPC   = 1.0E5/MPC;    // 1 km/s/Mpc [1/sec]
+
 
 // constexpr double HPLANCK    = 6.62607015E-27;
 // constexpr double JY         = 1.00000000E-23;
