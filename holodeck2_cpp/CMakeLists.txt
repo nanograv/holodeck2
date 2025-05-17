@@ -29,8 +29,38 @@ add_compile_definitions(DEBUG)
 # ====    Find Dependencies    ====
 # ==============================================================================
 
-# Get Python include path and extension suffix
+# ---- Python
+
 find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
+
+# ---- HDF5
+# By default, Cmake is finding the system HDF5 (from homebrew) which is compiled for arm64, which
+# is not compatible with x86_64 (which we're forcing, to work with the current anaconda python).
+# To fix this, we need to set the HDF5_ROOT variable to point to the anaconda hdf5 installation.
+
+# Try to detect conda and use its prefix for HDF5
+if(DEFINED ENV{CONDA_PREFIX})
+    set(CONDA_PREFIX $ENV{CONDA_PREFIX})
+
+    # Anaconda does not include a `/cmake/hdf5` directory by default to tell CMake where to find
+    # files, so we need to set them manually:
+    set(HDF5_INCLUDE_DIRS "$ENV{CONDA_PREFIX}/include")
+    set(HDF5_LIBRARIES "$ENV{CONDA_PREFIX}/lib/libhdf5.dylib")
+
+    # This would work if anaconda did include a cmake directory, but it doesn't:
+    # list(PREPEND CMAKE_PREFIX_PATH "${CONDA_PREFIX}")
+    # message(STATUS "Adding Conda prefix to cmake path: ${CONDA_PREFIX}")
+    # message(STATUS "CMAKE_PREFIX_PATH: ${CMAKE_PREFIX_PATH}")
+
+else()
+    message(FATAL_ERROR "No `CONDA_PREFIX` set and no alternative HDF5 config provided.")
+
+endif()
+
+# NOTE: The following line would override the HDF5 paths we manually set above.
+# find_package(HDF5 REQUIRED COMPONENTS C)
+message(STATUS "HDF5 include: ${HDF5_INCLUDE_DIRS}")
+message(STATUS "HDF5 libs:    ${HDF5_LIBRARIES}")
 
 
 # ==============================================================================
@@ -58,6 +88,8 @@ set_target_properties(holodeck2_cpp PROPERTIES
 
 # Include Python headers
 target_include_directories(holodeck2_cpp PRIVATE ${Python3_INCLUDE_DIRS})
+target_include_directories(holodeck2_cpp PRIVATE ${HDF5_INCLUDE_DIRS})
+target_link_libraries(holodeck2_cpp PRIVATE ${HDF5_LIBRARIES})
 
 # Make symlink to CWD
 add_custom_command(TARGET holodeck2_cpp POST_BUILD
@@ -81,6 +113,10 @@ add_executable(holodeck2cpp
 
 target_compile_definitions(holodeck2cpp PUBLIC PATH_DATA_DIR="${DATA_PATH}")
 
+target_include_directories(holodeck2cpp PRIVATE ${HDF5_INCLUDE_DIRS})
+target_link_libraries(holodeck2cpp PRIVATE ${HDF5_LIBRARIES})
+
+
 # Make symlink to executable in CWD
 add_custom_command(TARGET holodeck2cpp POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E create_symlink
@@ -91,10 +127,12 @@ add_custom_command(TARGET holodeck2cpp POST_BUILD
 
 # ---- Tests
 
-add_executable(tester
+add_executable(test_holodeck
     tests/tester.cpp
     src/cosmology.cpp
     src/physics.cpp
 )
 
-target_compile_definitions(tester PUBLIC PATH_DATA_DIR="${DATA_PATH}")
+target_compile_definitions(test_holodeck PUBLIC PATH_DATA_DIR="${DATA_PATH}")
+target_include_directories(test_holodeck PRIVATE ${HDF5_INCLUDE_DIRS})
+target_link_libraries(test_holodeck PRIVATE ${HDF5_LIBRARIES})
