@@ -24,21 +24,21 @@ int main(int argc, char *argv[]) {
     PTA pta(20.0, 30);
     printf(
         "Initialized PTA with %d frequencies between [%.2e, %.2e] Hz\n",
-        pta.num_freqs, pta.fobs_cents[0], pta.fobs_edges[pta.num_freqs-1]
+        pta.num_freq_cents, pta.fobs_cents[0], pta.fobs_edges[pta.num_freq_cents-1]
     );
 
     // GravWaves* gw = new GravWaves(&pta, 10, 5);
     GravWaves gw(&pta, 10, 5);
     printf(
         "Initialized GravWaves with %d freqs, %d reals, %d louds\n",
-        gw.num_freqs, gw.num_reals, gw.num_louds
+        gw.num_freq_cents, gw.num_reals, gw.num_louds
     );
 
     // SAM* sam = new SAM(&cosmo);
     SAM sam(&cosmo);
     printf(
         "Initialized SAM with %d mass bins, %d redshift bins\n",
-        sam.num_mass, sam.num_redz
+        sam.num_mass_edges, sam.num_redz_edges
     );
 
     // ---- Run Calculations

@@ -3,8 +3,10 @@
  */
 
 #include "sam.h"
+
 #include "physics.h"
 #include "cosmology.h"
+#include "hdf5.h"
 
 
 double SAM::dngal_to_dnmbh(double mbh1, double mbh2, double ms1, double ms2, double rz) {
@@ -116,10 +118,14 @@ double SAM::number_density(double mbh1, double mbh2, double rz, bool return_galg
 
 
 void SAM::grav_waves(PTA &pta, GravWaves &gw) {
+    #ifdef DEBUG
+    printf("SAM::grav_waves()\n");
+    #endif
+
     // Grid/domain sizes
-    int num_mass = this->num_mass;
-    int num_redz = this->num_redz;
-    int num_freqs = pta.num_freqs;
+    int num_mass_edges = this->num_mass_edges;
+    int num_redz_edges = this->num_redz_edges;
+    int num_freq_cents = pta.num_freq_cents;
     int num_reals = gw.num_reals;
     int num_louds = gw.num_louds;
 
@@ -138,77 +144,125 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
     // Temporary variables
     double hs2;                // spectral-strain-squared of an individual binary
     double tauf;               // GW Hardening timescale in frequency (f / df/dt)  [s]
-    double numb_expect;        // number of binaries (expectation-value) in each bin (bin centers) []
-    double mbh_mass_grams[num_mass];  // MBH mass [grams]
-    double dlog10_mbh[num_mass-1];  // log10(mbh) bin-width
-    double dz[num_redz-1];           // redshift bin-width
-    double dlnf[num_freqs-1];
-    double frst_orb[num_redz][num_freqs];   // Rest-frame orbital frequency [1/s]
-    double dist_com_Mpc[num_redz]; // comoving distance [MPC]
-    double dist_com_cm[num_redz];  // comoving distance [cm]
-    double cosmo_fact[num_redz];   // comoving distance [cm]
     int numb_in_real;
+    int m1, m2, z, f, r;      // loop iteration variables
+    int m1c, m2c, zc;         // loop iteration variables for bin-centers
+    int ii, jj, kk;           // loop iteration variables for integration stencil
 
-    int m1, m2, z, f, r;           // loop iteration variables
+    double mbh_mass_edges_grams[num_mass_edges];    // MBH mass, at grid edges   [grams]
+    double mbh_mass_cents_grams[num_mass_edges-1];  // MBH mass, at grid centers [grams]
+    double frst_orb_zedges[num_redz_edges][num_freq_cents];   // Rest-frame orbital freq (at redshift-edges)   [1/s]
+    double frst_orb_zcents[num_redz_edges-1][num_freq_cents]; // Rest-frame orbital freq (at redshift-centers) [1/s]
+    double dcom_edges_Mpc[num_redz_edges]; // comoving distance, at redshift bin edges [MPC]
+    double dcom_edges_cm[num_redz_edges];    // comoving distance, at redshift bin edges [cm]
+    double dcom_cents_cm[num_redz_edges-1];  // comoving distance, at redshift bin *centers* [cm]
+    double cosmo_fact[num_redz_edges];     // dVc/dz  [Mpc^3/s]
+    // bin-widths
+    double dlog10_mbh[num_mass_edges-1];   // log10(mbh) bin-width
+    double dz[num_redz_edges-1];           // redshift bin-width
+    double dlnf[num_freq_cents];
 
-    double** mchirp;               // [M1][M2] : chirp mass (rest-frame) [grams]
-    double*** num_dens;            // [M1][M2][Z] : differential number-density of binaries [Mpc^-3]
-    // double*** numb_expect;         // [M1][M2][Z] : number of binaries (expectation-value) in each bin (bin centers) []
-    double*** diff_numb;          // [M1][M2][Z] : differential-number of binaries at grid edges [] (unitless, but differential!)
+    double** mchirp_cents;          // [M1-1][M2-1] : chirp mass (rest-frame) [grams]
+    double*** num_dens;       // [M1][M2][Z] : differential number-density of binaries [Mpc^-3]
+    double*** diff_numb;      // [M1][M2][Z] : differential-number of binaries at grid edges []
+
+    //! FIX: this doesn't need to be stored always, add preprocessor directive to turn-on and turn-off as desired
+    double*** numb_expect;    // [M1-1][M2-1][Z-1] : number of binaries (expectation-value) in each bin (bin centers) []
+    // double numb_expect;        // number of binaries (expectation-value) in each bin (bin centers) []
 
     // ---- Perform initializations & pre-calculations
 
-    mchirp = (double**)malloc(num_mass * sizeof(double*));
-    num_dens = (double***)malloc(num_mass * sizeof(double**));
-    // numb_expect = (double***)malloc(num_mass * sizeof(double**));
-    diff_numb = (double***)malloc(num_mass * sizeof(double**));
+    mchirp_cents = (double**)malloc((num_mass_edges-1) * sizeof(double*));
+    num_dens = (double***)malloc(num_mass_edges * sizeof(double**));
+    diff_numb = (double***)malloc(num_mass_edges * sizeof(double**));
+    numb_expect = (double***)malloc((num_mass_edges-1) * sizeof(double**));     // bin-centers!
 
-    for(m1 = 0; m1 < num_mass; m1++) {
-        if (m1 > 0) { dlog10_mbh[m1-1] = log10(mass_edges[m1]) - log10(mass_edges[m1-1]); }
+    #ifdef DEBUG
+    printf("\tSAM::grav_waves(): allocation completed.  Initializing...\n");
+    #endif
 
-        mchirp[m1] = (double*)malloc(num_mass * sizeof(double));
-        num_dens[m1] = (double**)malloc(num_mass * sizeof(double*));
-        // numb_expect[m1] = (double**)malloc(num_mass * sizeof(double*));
-        diff_numb[m1] = (double**)malloc(num_mass * sizeof(double*));
-
-        for(m2 = 0; m2 < num_mass; m2++) {
-            if (m1 == 0) { mbh_mass_grams[m2] = mass_edges[m2] * MSOL; }
-            // `mchirp` [gram], Chirp-Mass (rest-frame)
-            physics::chirp_mass_from_m1m2(mbh_mass_grams[m1], mbh_mass_grams[m2], &mchirp[m1][m2]);
-
-            num_dens[m1][m2] = (double*)malloc(num_redz * sizeof(double));
-            // numb_expect[m1][m2] = (double*)malloc(num_redz * sizeof(double));
-            diff_numb[m1][m2] = (double*)malloc(num_redz * sizeof(double));
+    for(m1 = 0; m1 < num_mass_edges; m1++) {
+        mbh_mass_edges_grams[m1] = mass_edges[m1] * MSOL;
+        if (m1 > 0) {
+            m1c = m1 - 1;
+            dlog10_mbh[m1c] = log10(mass_edges[m1]) - log10(mass_edges[m1-1]);
+            mbh_mass_cents_grams[m1c] = mass_cents[m1] * MSOL;
         }
     }
 
-    for(z = 0; z < num_redz; z++) {
-        if (z > 0) { dz[z-1] = redz_edges[z] - redz_edges[z-1]; }
+    for(m1 = 0; m1 < num_mass_edges; m1++) {
 
-        this->cosmo->dcom_from_redz(redz_edges[z], &dist_com_Mpc[z]);
+        // initialize arrays shaped corresponding to bin *edges*
+        num_dens[m1] = (double**)malloc(num_mass_edges * sizeof(double*));
+        diff_numb[m1] = (double**)malloc(num_mass_edges * sizeof(double*));
+
+        if (m1 > 0) {
+            m1c = m1 - 1;
+            mchirp_cents[m1c] = (double*)malloc((num_mass_edges-1) * sizeof(double));
+            numb_expect[m1c] = (double**)malloc((num_mass_edges-1) * sizeof(double*));
+        }
+
+        for(m2 = 0; m2 < num_mass_edges; m2++) {
+            num_dens[m1][m2] = (double*)malloc(num_redz_edges * sizeof(double));
+            diff_numb[m1][m2] = (double*)malloc(num_redz_edges * sizeof(double));
+
+            // `mchirp_cents` [gram], Chirp-Mass (rest-frame)
+            if (m1 > 0 && m2 > 0) {
+                m2c = m2 - 1;
+                numb_expect[m1c][m2c] = (double*)malloc((num_redz_edges-1) * sizeof(double));  // bin-centers!
+                physics::chirp_mass_from_m1m2(
+                    mbh_mass_cents_grams[m1c], mbh_mass_cents_grams[m2c], &mchirp_cents[m1c][m2c]
+                );
+            }
+        } // m2
+    } // m1
+
+    for(z = 0; z < num_redz_edges; z++) {
+
+        this->cosmo->dcom_from_redz(redz_edges[z], &dcom_edges_Mpc[z]);
+
         // convert from Mpc to cm
-        dist_com_cm[z] = dist_com_Mpc[z] * MPC;
+        dcom_edges_cm[z] = dcom_edges_Mpc[z] * MPC;
 
         // [Mpc^3/s] : this is (dVc/dz) * (dz/dt)
-        cosmo_fact[z] = FOUR_PI_C_MPC * (1.0 + redz_edges[z]) * pow(dist_com_Mpc[z], 2);
+        cosmo_fact[z] = FOUR_PI_C_MPC * (1.0 + redz_edges[z]) * pow(dcom_edges_Mpc[z], 2);
 
-        for(f = 0; f < num_freqs; f++) {
-            if (z == 0 && f > 1) { dlnf[f] = log(fobs_edges[f]) - log(fobs_edges[f-1]); }
-            physics::frst_from_fobs(fobs_cents[f], redz_cents[z], &frst_orb[z][f]);
+        if (z > 0) {
+            zc = z - 1;
+            dz[zc] = redz_edges[z] - redz_edges[z-1];
+            // Get comoving distance at bin-centers in Mpc
+            this->cosmo->dcom_from_redz(redz_cents[zc], &dcom_cents_cm[zc]);
+            // convert from Mpc to cm
+            dcom_cents_cm[zc] = dcom_cents_cm[zc] * MPC;
+        }
+
+        for(f = 0; f < num_freq_cents; f++) {
+            physics::frst_from_fobs(fobs_cents[f], redz_edges[z], &frst_orb_zedges[z][f]);
+            if (z == 0 && f > 1) {
+                dlnf[f] = log(fobs_edges[f]) - log(fobs_edges[f-1]);
+            } else if (z > 0) {
+                physics::frst_from_fobs(fobs_cents[f], redz_cents[zc], &frst_orb_zcents[zc][f]);
+            }
         }
     }
+
+    #ifdef DEBUG
+    printf("\tSAM::grav_waves(): initialization completed.  Calculating GWB...\n");
+    #endif
 
     // ---- GWB Calculation
 
-    for(f = 0; f < num_freqs; f++) {
+    for(f = 0; f < num_freq_cents; f++) {
 
-        for(m1 = 0; m1 < num_mass; m1++) {
-            for(m2 = 0; m2 < num_mass; m2++) {
-                for(z = 0; z < num_redz; z++) {
+        for(m1 = 0; m1 < num_mass_edges; m1++) {
+            for(m2 = 0; m2 < num_mass_edges; m2++) {
+                for(z = 0; z < num_redz_edges; z++) {
 
                     // calculation differential number-densitiy of binary merger events
                     if (f == 0) {
-                        num_dens[m1][m2][z] = number_density(mbh_mass_grams[m1], mbh_mass_grams[m2], redz_edges[z]);
+                        num_dens[m1][m2][z] = number_density(
+                            mbh_mass_edges_grams[m1], mbh_mass_edges_grams[m2], redz_edges[z]
+                        );
                     }
 
                     //! FIX: consider implementing `num_dens` cutoff: if too low, skip
@@ -217,7 +271,9 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
                     // ---- Calculate (expectation-value) number of binaries in the universe at this bin
 
                     // `tauf` [sec], GW Hardening timescale in frequency
-                    physics::gw_hardening_time_freq(mbh_mass_grams[m1], mbh_mass_grams[m2], frst_orb[z][f], &tauf);
+                    physics::gw_hardening_time_freq(
+                        mbh_mass_edges_grams[m1], mbh_mass_edges_grams[m2], frst_orb_zedges[z][f], &tauf
+                    );
 
                     // expectation value for differential number of binaries
                     // this is:  $d^3 n / [dlog10(M1) dlog10(M2) dz dlog_e(f)]$
@@ -226,32 +282,48 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
 
                     // ---- Integrate over differential number
 
+                    // We perform a 3D trapezoid-rule integration over M1, M2, and z
+                    // to get the expectation value for the number of binaries in the bin.
+                    // The 'centers' have one less element than the 'edges', so we skip the 0th
+                    // element in the 3D grid.  Centers are indexed as 1-less than the edges:
+                    // i.e. 'm1-1', 'm2-1', 'z-1'
+                    // Remember that the frequencies we're interating over are already bin centers!
+
                     if ( m1 == 0 || m2 == 0 || z == 0 ) continue;
 
-                    numb_expect = 0.0;
+                    m1c = m1 - 1;
+                    m2c = m2 - 1;
+                    zc = z - 1;
+
+                    numb_expect[m1c][m2c][zc] = 0.0;
+
                     // stencil over corners of the bin in 3D
-                    for (int ii = 0; ii < 2; ii++) {
-                        for (int jj = 0; jj < 2; jj++) {
-                            for (int kk = 0; kk < 2; kk++) {
-                                numb_expect += (
+                    // We subtract 0,1 to ensure we get the 0th elements that we skipped above
+                    for (ii = 0; ii < 2; ii++) {
+                        for (jj = 0; jj < 2; jj++) {
+                            for (kk = 0; kk < 2; kk++) {
+                                numb_expect[m1c][m2c][zc] += (
                                     diff_numb[m1-ii][m2-jj][z-kk] *
                                     dlnf[f] *
-                                    dlog10_mbh[m1-1] *
-                                    dlog10_mbh[m2-1]
+                                    dlog10_mbh[m1c] *
+                                    dlog10_mbh[m2c]
                                 );
                             }
                         }
                     }
+
                     // we've added together 2-sides on 3 dimensions, so divide by 2^3 = 8
-                    numb_expect /= 8.0;
+                    numb_expect[m1c][m2c][zc] /= 8.0;
 
                     // construct Poisson distribution centered on the expectation value
-                    std::poisson_distribution<int> dist(numb_expect);
+                    std::poisson_distribution<int> dist(numb_expect[m1c][m2c][zc]);
 
                     // ---- Calculate GW amplitude for each binary
 
                     // `hs2` [], Spectral strain-squared of the binary
-                    physics::gw_strain_source_sq(mchirp[m1][m2], dist_com_cm[z], frst_orb[z][f], &hs2);
+                    physics::gw_strain_source_sq(
+                        mchirp_cents[m1c][m2c], dcom_cents_cm[zc], frst_orb_zcents[zc][f], &hs2
+                    );
 
                     for(r = 0; r < num_reals; r++) {
                         numb_in_real = dist(rng);
@@ -271,18 +343,28 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
 
     // ---- Clean up
 
-    for(m1 = 0; m1 < num_mass; m1++) {
-        for(m2 = 0; m2 < num_mass; m2++) {
+    #ifdef DEBUG
+    printf("\tSAM::grav_waves(): Calculating GWB completed.  Cleaning up...\n");
+    #endif
+
+    for(m1 = 0; m1 < num_mass_edges; m1++) {
+        for(m2 = 0; m2 < num_mass_edges; m2++) {
             free(num_dens[m1][m2]);
             free(diff_numb[m1][m2]);
+            if (m1 > 0 && m2 > 0) {
+                free(numb_expect[m1-1][m2-1]);
+            }
         }
-        free(mchirp[m1]);
         free(num_dens[m1]);
         free(diff_numb[m1]);
+        if (m1 > 0) {
+            free(mchirp_cents[m1-1]);
+            free(numb_expect[m1-1]);
+        }
     }
-    free(mchirp);
     free(num_dens);
     free(diff_numb);
+    free(mchirp_cents);
 
 };
 

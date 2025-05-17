@@ -23,16 +23,16 @@ class PTA {
 
 public:
     double obs_dur;
-    int num_freqs;
+    int num_freq_cents;
     double* fobs_cents;
     double* fobs_edges;
 
-    PTA(double dur=20.0, double nfreqs=30) : obs_dur(dur), num_freqs(nfreqs) {
-        fobs_cents = (double*)malloc(num_freqs * sizeof(double));
-        fobs_edges = (double*)malloc((num_freqs+1) * sizeof(double));
+    PTA(double dur=20.0, double nfreqs=30) : obs_dur(dur), num_freq_cents(nfreqs) {
+        fobs_cents = (double*)malloc(num_freq_cents * sizeof(double));
+        fobs_edges = (double*)malloc((num_freq_cents+1) * sizeof(double));
         double df = 1.0 / obs_dur;
         fobs_edges[0] = df * 0.5;
-        for (int ii = 0; ii < num_freqs; ii++) {
+        for (int ii = 0; ii < num_freq_cents; ii++) {
             fobs_cents[ii] = df * (ii + 1);
             fobs_edges[ii+1] = df * (ii + 1.5);
         }
@@ -48,7 +48,7 @@ public:
 
 class GravWaves {
 public:
-    int num_freqs;
+    int num_freq_cents;
     int num_reals;
     int num_louds;
 
@@ -57,10 +57,10 @@ public:
 
     GravWaves(PTA *pta, int nreals = 100, int nloud = 5) : pta(pta), num_reals(nreals), num_louds(nloud) {
         this->pta = pta;
-        num_freqs = pta->num_freqs;
-        gwb = (double** )malloc(num_freqs * sizeof(double*));
-        cws = (double*** )malloc(num_freqs * sizeof(double**));
-        for (int ii = 0; ii < num_freqs; ii++) {
+        num_freq_cents = pta->num_freq_cents;
+        gwb = (double** )malloc(num_freq_cents * sizeof(double*));
+        cws = (double*** )malloc(num_freq_cents * sizeof(double**));
+        for (int ii = 0; ii < num_freq_cents; ii++) {
             gwb[ii] = (double* )malloc(num_reals * sizeof(double));
             cws[ii] = (double** )malloc(num_reals * sizeof(double*));
             for (int jj = 0; jj < num_reals; jj++) {
@@ -70,7 +70,7 @@ public:
     }
 
     ~GravWaves() {
-        for (int ii = 0; ii < pta->num_freqs; ii++) {
+        for (int ii = 0; ii < pta->num_freq_cents; ii++) {
             free(gwb[ii]);
             for (int jj = 0; jj < num_reals; jj++) {
                 free(cws[ii][jj]);
@@ -89,8 +89,8 @@ private:
 
 class SAM {
 public:
-    int num_mass;
-    int num_redz;
+    int num_mass_edges;
+    int num_redz_edges;
     double *mass_edges;
     double *redz_edges;
     double *mass_cents;
@@ -132,19 +132,19 @@ public:
     SAM(Cosmology* cosmo) {
         this->cosmo = cosmo;
 
-        num_mass = mass_pars[2];
-        num_redz = redz_pars[2];
-        mass_cents = (double*)malloc(num_mass * sizeof(double));
-        redz_cents = (double*)malloc(num_redz * sizeof(double));
-        mass_edges = (double*)malloc((num_mass+1) * sizeof(double));
-        redz_edges = (double*)malloc((num_redz+1) * sizeof(double));
+        num_mass_edges = mass_pars[2];
+        num_redz_edges = redz_pars[2];
+        mass_cents = (double*)malloc(num_mass_edges * sizeof(double));
+        redz_cents = (double*)malloc(num_redz_edges * sizeof(double));
+        mass_edges = (double*)malloc((num_mass_edges+1) * sizeof(double));
+        redz_edges = (double*)malloc((num_redz_edges+1) * sizeof(double));
 
         // ---- Initialize mass edges and centers
 
-        double dlog10m = (log10(mass_pars[1]) - log10(mass_pars[1])) / num_mass;
+        double dlog10m = (log10(mass_pars[1]) - log10(mass_pars[1])) / num_mass_edges;
         double next, prev = log10(mass_pars[0]);
         mass_edges[0] = pow(10.0, prev);
-        for (int ii = 0; ii < num_mass; ii++) {
+        for (int ii = 0; ii < num_mass_edges; ii++) {
             next = prev + dlog10m;
             mass_edges[ii+1] = pow(10.0, next);
             mass_cents[ii] = pow(10.0, 0.5 * (prev + next));
@@ -152,10 +152,10 @@ public:
 
         // ---- Initialize redshift edges and centers
 
-        double dlog10z = (log10(redz_pars[1]) - log10(redz_pars[0])) / num_redz;
+        double dlog10z = (log10(redz_pars[1]) - log10(redz_pars[0])) / num_redz_edges;
         prev = log10(redz_pars[0]);
         redz_edges[0] = pow(10.0, prev);
-        for (int ii = 0; ii < num_redz; ii++) {
+        for (int ii = 0; ii < num_redz_edges; ii++) {
             next = prev + dlog10z;
             redz_edges[ii+1] = pow(10.0, next);
             redz_cents[ii] = pow(10.0, 0.5 * (prev + next));
