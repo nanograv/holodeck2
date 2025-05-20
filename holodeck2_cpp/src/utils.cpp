@@ -2,8 +2,6 @@
  *
  */
 
-#pragma once
-
 #ifndef UTILS_H
 #define UTILS_H
 
@@ -17,37 +15,110 @@ using namespace std;
 
 namespace utils {
 
-    template <typename T>
-    int* argsort(const T* array, size_t size) {
-        int* indices = new int[size];
-        for (int i = 0; i < size; ++i)
-            indices[i] = i;
-
-        std::sort(
-            indices, indices + size,
-            [&](size_t i, size_t j) { return array[i] < array[j]; }
-        );
-
-        return indices;
+    bool is_almost_equal(double a, double b, double atol = 1E-8, double rtol = 1E-6) {
+        double rval;
+        if ((fabs(a) > 0) && (fabs(b) > 0)) {
+            rval = fmin(fabs(a), fabs(b));
+        } else {
+            rval = fmax(fabs(a), fabs(b));
+        }
+        // #ifdef DEBUG
+        //     printf(
+        //         "is_almost_equal(): diff=%.8e, atol=%.8e, rtol*rval=%.8e*%.8e=%.8e\n",
+        //         fabs(a-b), atol, rtol, rval, rtol * rval
+        //     );
+        // #endif
+        return (fabs(a - b) <= (atol + rtol * rval));
     }
 
+    void index_2d_to_1d(int i, int j, int dim1, int dim2, int* idx) {
+        *idx = (i * dim2) + j;
+    }
 
-    void index_2d_to_1d(int i, int j, int dim1, int dim2, int* index);
+    void index_3d_to_1d(int i, int j, int k, int dim1, int dim2, int dim3, int* idx) {
+        *idx = (i * dim2 * dim3) + (j * dim3) + k;
+    }
 
-    void index_3d_to_1d(int i, int j, int k, int dim1, int dim2, int dim3, int* index);
+    void index_1d_to_3d(int idx, int dim1, int dim2, int dim3, int* i, int* j, int* k) {
+        *i = idx / (dim2 * dim3);
+        *j = (idx % (dim2 * dim3)) / dim3;
+        *k = idx % dim3;
+    }
 
-    void index_1d_to_3d(int index, int dim1, int dim2, int dim3, int* i, int* j, int* k);
-
-    void index_1d_to_2d(int index, int dim1, int dim2, int* i, int* j);
-
-    bool is_almost_equal(double a, double b, double atol = 1E-8, double rtol = 1E-6);
+    void index_1d_to_2d(int idx, int dim1, int dim2, int* i, int* j) {
+        *i = idx / dim2;
+        *j = idx % dim2;
+    }
 
     /*
     !NOT WORKING!
     double* quantiles(
         double* values, int num_vals, double* percs, int num_percs,
         double* weights = nullptr, bool values_sorted = false
-    );
+    ) {
+
+        int* indices;
+        if (values_sorted) {
+            indices = new int[num_vals];
+            for (int i = 0; i < num_vals; ++i) {
+                indices[i] = i;
+            }
+        } else {
+            indices = argsort(values, num_vals);
+        }
+
+        // printf("quantiles(): created sorted indices.\n");
+
+        // Calculate cumulative weights
+        double* cum_weights = new double[num_vals];
+        cum_weights[0] = (weights != nullptr) ? weights[0] : 1.0;
+        for (int i = 1; i < num_vals; i++) {
+            // printf("indices[%d]=%d, cum_weights[%d-1]=%.8e\n", i, indices[i], i, cum_weights[i-1]);
+            cum_weights[i] = cum_weights[indices[i - 1]] + ((weights != nullptr) ? weights[indices[i]] : 1.0);
+            #ifdef DEBUG
+            if(values[indices[i]] < values[indices[i - 1]]) {
+                std::string err_msg = std::format(
+                    "Error `quantiles()` - values are not sorted!: values[{:d}]={:.8e} < values[{:d}]={:.8e}\n",
+                    indices[i], values[indices[i]], indices[i-1], values[indices[i-1]]
+                );
+                throw std::runtime_error(err_msg);
+            }
+            #endif
+        }
+
+        // printf("quantiles(): created cumulative weights.\n");
+
+        double total_weight = cum_weights[num_vals - 1];
+        double* quantiles = new double[num_percs];
+        double target;
+        int idx;
+        for (int i = 0; i < num_percs; i++) {
+            target = percs[i] * total_weight;
+            idx = 0;
+            while (idx < num_vals && cum_weights[idx] < target) {
+                idx++;
+            }
+            if (idx == 0) {
+                quantiles[i] = values[indices[0]];
+            } else if (idx == num_vals) {
+                quantiles[i] = values[indices[num_vals - 1]];
+            } else {
+                quantiles[i] = (
+                    values[indices[idx - 1]] + (
+                        (target - cum_weights[idx - 1]) *
+                        (values[idx] - values[idx - 1]) /
+                        (cum_weights[idx] - cum_weights[idx - 1])
+                    )
+                );
+            }
+        }
+
+        // printf("quantiles(): calculated quantiles.\n");
+
+        delete[] indices;
+        delete[] cum_weights;
+        return quantiles;
+    };
     */
 
 
@@ -56,103 +127,25 @@ namespace utils {
     // =========================================================================
 
 
-    template <typename T> hid_t get_hdf5_type();
-    template <> inline hid_t get_hdf5_type<int>() { return H5T_NATIVE_INT; }
-    template <> inline hid_t get_hdf5_type<float>() { return H5T_NATIVE_FLOAT; }
-    template <> inline hid_t get_hdf5_type<double>() { return H5T_NATIVE_DOUBLE; }
-    template <> inline hid_t get_hdf5_type<long>() { return H5T_NATIVE_LONG; }
+    hid_t open_or_create_group(hid_t parent, const char* group_name) {
+        // Suppress HDF5 automatic error printing
+        H5E_auto2_t old_func;
+        void* old_client_data;
+        H5Eget_auto(H5E_DEFAULT, &old_func, &old_client_data);
+        H5Eset_auto(H5E_DEFAULT, nullptr, nullptr);
 
-    hid_t open_or_create_group(hid_t parent, const char* group_name);
+        // Try to open the group
+        hid_t group = H5Gopen(parent, group_name, H5P_DEFAULT);
 
+        // Restore original error printing
+        H5Eset_auto(H5E_DEFAULT, old_func, old_client_data);
 
-    template <typename T>
-    void hdf5_write_scalar(hid_t h5_file, const char* group_name, const char* name, const T& value) {
-        static_assert(
-            std::is_arithmetic<T>::value,
-            "hdf5_write_scalar only supports primitive numeric types"
-        );
-        // printf("\thdf5_write_scalar(): %s - %s\n", group_name, name);
-
-        hid_t dtype = get_hdf5_type<T>();
-        hid_t group = open_or_create_group(h5_file, group_name);
-        hid_t space = H5Screate(H5S_SCALAR);
-        hid_t dset = H5Dcreate(
-            group, name, dtype, space,
-            H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT
-        );
-
-        H5Dwrite(dset, dtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, &value);
-
-        H5Dclose(dset);
-        H5Sclose(space);
-        H5Gclose(group);
-    }
-
-
-    template <typename T>
-    void hdf5_write_array1d(
-        hid_t h5_file, const char* group_name, const char* dataset_name,
-        const T* data, const int data_size
-    ) {
-        static_assert(
-            std::is_arithmetic<T>::value,
-            "hdf5_write_scalar only supports primitive numeric types"
-        );
-
-        hid_t dtype = get_hdf5_type<T>();
-        hid_t group = open_or_create_group(h5_file, group_name);
-        hsize_t dims[1] = {static_cast<hsize_t>(data_size)};
-        hid_t space = H5Screate_simple(1, dims, nullptr);
-        hid_t dset = H5Dcreate(
-            group, dataset_name, dtype, space,
-            H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT
-        );
-
-        H5Dwrite(dset, dtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
-
-        // Close the dataset and group
-        H5Dclose(dset);
-        H5Sclose(space);
-        H5Gclose(group);
-    }
-
-
-    template <typename T>
-    void hdf5_write_array2d(
-        hid_t h5_file, const char* group_name, const char* dataset_name,
-        const T** data, const int xsize, const int ysize
-    ) {
-        static_assert(
-            std::is_arithmetic<T>::value,
-            "hdf5_write_scalar only supports primitive numeric types"
-        );
-
-        hid_t dtype = get_hdf5_type<T>();
-        hid_t group = open_or_create_group(h5_file, group_name);
-        hsize_t dims[2] = {static_cast<hsize_t>(xsize), static_cast<hsize_t>(ysize)};
-        hid_t space = H5Screate_simple(2, dims, nullptr);
-        hid_t dset = H5Dcreate(
-            group, dataset_name, dtype, space,
-            H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT
-        );
-
-        // Flatten the 2D array into a 1D array
-        T* data_flat = new T[xsize * ysize];
-        int idx;
-        for (int i = 0; i < xsize; ++i) {
-            for (int j = 0; j < ysize; ++j) {
-                index_2d_to_1d(i, j, xsize, ysize, &idx);
-                data_flat[idx] = data[i][j];
-            }
+        // If group didn't exist, create it
+        if (group < 0) {
+            group = H5Gcreate(parent, group_name, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
         }
 
-        // Write the flattened data to the dataset
-        H5Dwrite(dset, dtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, data_flat);
-
-        // Close the dataset and group
-        H5Dclose(dset);
-        H5Sclose(space);
-        H5Gclose(group);
+        return group;  // Caller must close with H5Gclose()
     }
 
 }

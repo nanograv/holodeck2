@@ -105,10 +105,11 @@ add_custom_command(TARGET holodeck2_cpp POST_BUILD
 # ==============================================================================
 
 add_executable(holodeck2cpp
-    src/main.cpp
-    src/sam.cpp
-    src/physics.cpp
     src/cosmology.cpp
+    src/main.cpp
+    src/physics.cpp
+    src/sam.cpp
+    src/utils.cpp
 )
 
 target_compile_definitions(holodeck2cpp PUBLIC PATH_DATA_DIR="${DATA_PATH}")
@@ -131,6 +132,7 @@ add_executable(test_holodeck
     tests/tester.cpp
     src/cosmology.cpp
     src/physics.cpp
+    src/utils.cpp
 )
 
 target_compile_definitions(test_holodeck PUBLIC PATH_DATA_DIR="${DATA_PATH}")

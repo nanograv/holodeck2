@@ -54,6 +54,48 @@ void test_argsort() {
     delete[] sorted_indices;
 }
 
+
+void test_index_2d_to_1d() {
+    printf(" - test_utils::test_index_2d_to_1d()\n");
+
+    int dim1 = 5, dim2 = 3;
+    int index, a, b;
+    for (int i = 0; i < dim1; ++i) {
+        for (int j = 0; j < dim2; ++j) {
+            utils::index_2d_to_1d(i, j, dim1, dim2, &index);
+            check(index == (i * dim2 + j), "index_2d_to_1d() failed!");
+            utils::index_1d_to_2d(index, dim1, dim2, &a, &b);
+            check(i == a, "index_1d_to_2d() failed!  i != a");
+            check(j == b, "index_1d_to_2d() failed!  j != b");
+        }
+    }
+
+    std::cout << "✅ index_2d_to_1d passed.\n";
+}
+
+
+void test_index_3d_to_1d() {
+    printf(" - test_utils::test_index_3d_to_1d()\n");
+
+    int dim1 = 5, dim2 = 3, dim3 = 4;
+    int index, a, b, c;
+    for (int i = 0; i < dim1; ++i) {
+        for (int j = 0; j < dim2; ++j) {
+            for (int k = 0; k < dim3; ++k) {
+                utils::index_3d_to_1d(i, j, k, dim1, dim2, dim3, &index);
+                check(index == (i * (dim2*dim3) + j*dim3 + j), "index_3d_to_1d() failed!");
+                utils::index_1d_to_3d(index, dim1, dim2, dim3, &a, &b, &c);
+                check(i == a, "index_1d_to_3d() failed!  i != a");
+                check(j == b, "index_1d_to_3d() failed!  j != b");
+                check(k == c, "index_1d_to_3d() failed!  k != c");
+            }
+        }
+    }
+
+    std::cout << "✅ index_3d_to_1d passed.\n";
+}
+
+
 void test_is_almost_equal() {
     printf(" - test_utils::test_is_almost_equal()\n");
 
@@ -107,6 +149,8 @@ void test_utils() {
     printf(" ====    test_utils::test_utils()\n");
 
     test_argsort();
+
+    test_index_2d_to_1d();
 
     test_is_almost_equal();
 
