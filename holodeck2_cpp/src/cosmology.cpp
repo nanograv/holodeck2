@@ -117,12 +117,12 @@ void Cosmology::load_cosmo_data(const std::string& path) {
             throw std::runtime_error("Failed to parse line: " + line);
         }
 
-        redz_log10[i] = log10(z);
-        scafa_log10[i]    = log10(a);
-        dcom_log10[i]     = log10(d);
-        vcom_log10[i]     = log10(v);
-        tlook_log10[i]    = log10(t);
-        efunc_log10[i]    = log10(e);
+        redz_log10[i]  = log10(z);
+        scafa_log10[i] = log10(a);
+        dcom_log10[i]  = log10(d);
+        vcom_log10[i]  = log10(v);
+        tlook_log10[i] = log10(t);
+        efunc_log10[i] = log10(e);
 
         // Check for evenly spaced grid in log10(z)
         if (i > 0) {
