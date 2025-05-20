@@ -58,27 +58,27 @@ public:
     GravWaves(PTA *pta, int nreals = 100, int nloud = 5) : pta(pta), num_reals(nreals), num_louds(nloud) {
         this->pta = pta;
         num_freq_cents = pta->num_freq_cents;
-        gwb = (double** )malloc(num_freq_cents * sizeof(double*));
-        cws = (double*** )malloc(num_freq_cents * sizeof(double**));
+        gwb = (double** )calloc(num_freq_cents, sizeof(double*));
+        cws = (double*** )calloc(num_freq_cents, sizeof(double**));
         for (int ii = 0; ii < num_freq_cents; ii++) {
-            gwb[ii] = (double* )malloc(num_reals * sizeof(double));
-            cws[ii] = (double** )malloc(num_reals * sizeof(double*));
+            gwb[ii] = (double* )calloc(num_reals, sizeof(double));
+            cws[ii] = (double** )calloc(num_reals, sizeof(double*));
             for (int jj = 0; jj < num_reals; jj++) {
-                cws[ii][jj] = (double* )malloc(num_louds * sizeof(double));
+                cws[ii][jj] = (double* )calloc(num_louds, sizeof(double));
             }
         }
     }
 
     ~GravWaves() {
         for (int ii = 0; ii < pta->num_freq_cents; ii++) {
-            free(gwb[ii]);
             for (int jj = 0; jj < num_reals; jj++) {
                 free(cws[ii][jj]);
             }
             free(cws[ii]);
+            free(gwb[ii]);
         }
-        free(gwb);
         free(cws);
+        free(gwb);
     };
 
 private:
@@ -99,8 +99,10 @@ public:
 //! FIX: make these private
 // private:
     // Grid
-    double mass_pars[3] = {1E6, 1E12, 101};
-    double redz_pars[3] = {1E-2, 1E1, 91};
+    // double mass_pars[3] = {1E6, 1E12, 101};
+    // double redz_pars[3] = {1E-2, 1E1, 91};
+    double mass_pars[3] = {1E6, 1E12, 21};
+    double redz_pars[3] = {1E-2, 1E1, 11};
 
     // GSMF - Double Schechter
     double gsmf_log10_phi1[3] = {-2.383, -0.264, -0.107};
@@ -141,13 +143,16 @@ public:
 
         // ---- Initialize mass edges and centers
 
-        double dlog10m = (log10(mass_pars[1]) - log10(mass_pars[1])) / num_mass_edges;
+        double dlog10m = (log10(mass_pars[1]) - log10(mass_pars[0])) / num_mass_edges;
         double next, prev = log10(mass_pars[0]);
         mass_edges[0] = pow(10.0, prev);
+        // printf("mass_edges[0]=%.2e, dlog10m=%.2e\n", mass_edges[0], dlog10m);
         for (int ii = 0; ii < num_mass_edges; ii++) {
             next = prev + dlog10m;
             mass_edges[ii+1] = pow(10.0, next);
             mass_cents[ii] = pow(10.0, 0.5 * (prev + next));
+            // printf("mass_edges[%d]=%.2e, mass_cents[%d]=%.2e (next=%.2e)\n", ii, mass_edges[ii], ii, mass_cents[ii], next);
+            prev = next;
         }
 
         // ---- Initialize redshift edges and centers
@@ -155,10 +160,13 @@ public:
         double dlog10z = (log10(redz_pars[1]) - log10(redz_pars[0])) / num_redz_edges;
         prev = log10(redz_pars[0]);
         redz_edges[0] = pow(10.0, prev);
+        // printf("redz_edges[0]=%.2e, dlog10z=%.2e\n", redz_edges[0], dlog10z);
         for (int ii = 0; ii < num_redz_edges; ii++) {
             next = prev + dlog10z;
             redz_edges[ii+1] = pow(10.0, next);
             redz_cents[ii] = pow(10.0, 0.5 * (prev + next));
+            // printf("redz_edges[%d]=%.2e, redz_cents[%d]=%.2e (next=%.2e)\n", ii, redz_edges[ii], ii, redz_cents[ii], next);
+            prev = next;
         }
 
     }

@@ -2,11 +2,37 @@
  *
  */
 
+// #include <hdf5.h>
+
 #include "sam.h"
 
-#include "physics.h"
 #include "cosmology.h"
-#include "hdf5.h"
+#include "physics.h"
+#include "utils.h"
+
+
+#define FNAME_OUTPUT_HDF5 "output.hdf5"
+
+
+void hdf5_write_meta(hid_t h5_file, SAM &sam, PTA &pta, GravWaves &gw) {
+    // Write metadata to the HDF5 file
+
+    printf("hdf5_write_meta()\n");
+
+    //! FIX: WRITE SETTINGS/CONFIG TO HDF5 FILE ALSO
+    //! ......
+
+    // Write grid information to HDF5 file
+    const char* group_name = "grid";
+    utils::hdf5_write_array1d(h5_file, group_name, "mass_edges", sam.mass_edges, sam.num_mass_edges);
+    utils::hdf5_write_array1d(h5_file, group_name, "mass_cents", sam.mass_cents, sam.num_mass_edges-1);
+    utils::hdf5_write_array1d(h5_file, group_name, "redz_edges", sam.redz_edges, sam.num_redz_edges);
+    utils::hdf5_write_array1d(h5_file, group_name, "redz_cents", sam.redz_cents, sam.num_redz_edges-1);
+    utils::hdf5_write_array1d(h5_file, group_name, "fobs_edges", pta.fobs_edges, pta.num_freq_cents+1);
+    utils::hdf5_write_array1d(h5_file, group_name, "fobs_cents", pta.fobs_cents, pta.num_freq_cents);
+    utils::hdf5_write_scalar<int>(h5_file, group_name, "num_reals", gw.num_reals);
+    utils::hdf5_write_scalar<int>(h5_file, group_name, "num_louds", gw.num_louds);
+}
 
 
 double SAM::dngal_to_dnmbh(double mbh1, double mbh2, double ms1, double ms2, double rz) {
@@ -124,7 +150,9 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
 
     // Grid/domain sizes
     int num_mass_edges = this->num_mass_edges;
+    int num_mass_cents = num_mass_edges - 1;
     int num_redz_edges = this->num_redz_edges;
+    int num_redz_cents = num_redz_edges - 1;
     int num_freq_cents = pta.num_freq_cents;
     int num_reals = gw.num_reals;
     int num_louds = gw.num_louds;
@@ -139,27 +167,28 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
 
     // Values to be calculated/filled
     double** gwb = gw.gwb;   // [F][R]     : frequencies, realizations
-    double*** cws = gw.cws;  // [F][R][L]  : frequencies, realizations, loudest
+    // double*** cws = gw.cws;  // [F][R][L]  : frequencies, realizations, loudest
 
     // Temporary variables
     double hs2;                // spectral-strain-squared of an individual binary
-    double tauf;               // GW Hardening timescale in frequency (f / df/dt)  [s]
+    // double tauf;               // GW Hardening timescale in frequency (f / df/dt)  [s]
     int numb_in_real;
     int m1, m2, z, f, r;      // loop iteration variables
     int m1c, m2c, zc;         // loop iteration variables for bin-centers
     int ii, jj, kk;           // loop iteration variables for integration stencil
+    int idx;
 
     double mbh_mass_edges_grams[num_mass_edges];    // MBH mass, at grid edges   [grams]
-    double mbh_mass_cents_grams[num_mass_edges-1];  // MBH mass, at grid centers [grams]
+    double mbh_mass_cents_grams[num_mass_cents];  // MBH mass, at grid centers [grams]
     double frst_orb_zedges[num_redz_edges][num_freq_cents];   // Rest-frame orbital freq (at redshift-edges)   [1/s]
-    double frst_orb_zcents[num_redz_edges-1][num_freq_cents]; // Rest-frame orbital freq (at redshift-centers) [1/s]
+    double frst_orb_zcents[num_redz_cents][num_freq_cents]; // Rest-frame orbital freq (at redshift-centers) [1/s]
     double dcom_edges_Mpc[num_redz_edges]; // comoving distance, at redshift bin edges [MPC]
     double dcom_edges_cm[num_redz_edges];    // comoving distance, at redshift bin edges [cm]
-    double dcom_cents_cm[num_redz_edges-1];  // comoving distance, at redshift bin *centers* [cm]
+    double dcom_cents_cm[num_redz_cents];  // comoving distance, at redshift bin *centers* [cm]
     double cosmo_fact[num_redz_edges];     // dVc/dz  [Mpc^3/s]
     // bin-widths
-    double dlog10_mbh[num_mass_edges-1];   // log10(mbh) bin-width
-    double dz[num_redz_edges-1];           // redshift bin-width
+    double dlog10_mbh[num_mass_cents];   // log10(mbh) bin-width
+    double dz[num_redz_cents];           // redshift bin-width
     double dlnf[num_freq_cents];
 
     double** mchirp_cents;          // [M1-1][M2-1] : chirp mass (rest-frame) [grams]
@@ -168,14 +197,20 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
 
     //! FIX: this doesn't need to be stored always, add preprocessor directive to turn-on and turn-off as desired
     double*** numb_expect;    // [M1-1][M2-1][Z-1] : number of binaries (expectation-value) in each bin (bin centers) []
+    double*** tauf;           // [M1][M2][Z] :
     // double numb_expect;        // number of binaries (expectation-value) in each bin (bin centers) []
 
     // ---- Perform initializations & pre-calculations
 
-    mchirp_cents = (double**)malloc((num_mass_edges-1) * sizeof(double*));
+    mchirp_cents = (double**)malloc((num_mass_cents) * sizeof(double*));
     num_dens = (double***)malloc(num_mass_edges * sizeof(double**));
     diff_numb = (double***)malloc(num_mass_edges * sizeof(double**));
-    numb_expect = (double***)malloc((num_mass_edges-1) * sizeof(double**));     // bin-centers!
+    tauf = (double***)malloc((num_mass_edges) * sizeof(double**));
+    numb_expect = (double***)malloc((num_mass_cents) * sizeof(double**));     // bin-centers!
+
+    // Flattened data for writing to HDF5
+    double* tauf_flat = (double*)malloc(num_mass_cents * num_mass_cents * num_redz_cents);
+    double* numb_expect_flat = (double*)malloc(num_mass_cents * num_mass_cents * num_redz_cents);
 
     #ifdef DEBUG
     printf("\tSAM::grav_waves(): allocation completed.  Initializing...\n");
@@ -195,21 +230,23 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
         // initialize arrays shaped corresponding to bin *edges*
         num_dens[m1] = (double**)malloc(num_mass_edges * sizeof(double*));
         diff_numb[m1] = (double**)malloc(num_mass_edges * sizeof(double*));
+        tauf[m1] = (double**)malloc(num_mass_edges * sizeof(double*));
 
         if (m1 > 0) {
             m1c = m1 - 1;
-            mchirp_cents[m1c] = (double*)malloc((num_mass_edges-1) * sizeof(double));
-            numb_expect[m1c] = (double**)malloc((num_mass_edges-1) * sizeof(double*));
+            mchirp_cents[m1c] = (double*)malloc((num_mass_cents) * sizeof(double));
+            numb_expect[m1c] = (double**)malloc((num_mass_cents) * sizeof(double*));
         }
 
         for(m2 = 0; m2 < num_mass_edges; m2++) {
             num_dens[m1][m2] = (double*)malloc(num_redz_edges * sizeof(double));
             diff_numb[m1][m2] = (double*)malloc(num_redz_edges * sizeof(double));
+            tauf[m1][m2] = (double*)malloc(num_redz_edges * sizeof(double));
 
             // `mchirp_cents` [gram], Chirp-Mass (rest-frame)
             if (m1 > 0 && m2 > 0) {
                 m2c = m2 - 1;
-                numb_expect[m1c][m2c] = (double*)malloc((num_redz_edges-1) * sizeof(double));  // bin-centers!
+                numb_expect[m1c][m2c] = (double*)malloc((num_redz_cents) * sizeof(double));  // bin-centers!
                 physics::chirp_mass_from_m1m2(
                     mbh_mass_cents_grams[m1c], mbh_mass_cents_grams[m2c], &mchirp_cents[m1c][m2c]
                 );
@@ -246,11 +283,28 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
         }
     }
 
+
+    // Create HDF5 file
+    #ifdef DEBUG
+    printf("\tSAM::grav_waves(): intializing hdf5 file '%s' for output...\n", FNAME_OUTPUT_HDF5);
+    #endif
+
+    // hid_t h5_file = H5Fcreate(FNAME_OUTPUT_HDF5, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    // H5Slice_4D h5_numb_expect = H5Slice_4D(
+    //     h5_file, "numb_expect",
+    //     num_freq_cents, num_mass_cents, num_mass_cents, num_redz_cents
+    // );
+
+    // ---- GWB Calculation
+
     #ifdef DEBUG
     printf("\tSAM::grav_waves(): initialization completed.  Calculating GWB...\n");
     #endif
 
-    // ---- GWB Calculation
+    int pos_numb_expect = 0;
+    int pos_tauf = 0;
+    int pos_gwb = 0;
+    int pos_num_dens = 0;
 
     for(f = 0; f < num_freq_cents; f++) {
 
@@ -263,6 +317,9 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
                         num_dens[m1][m2][z] = number_density(
                             mbh_mass_edges_grams[m1], mbh_mass_edges_grams[m2], redz_edges[z]
                         );
+                        if (num_dens[m1][m2][z] > 0.0) {
+                            pos_num_dens++;
+                        }
                     }
 
                     //! FIX: consider implementing `num_dens` cutoff: if too low, skip
@@ -272,13 +329,17 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
 
                     // `tauf` [sec], GW Hardening timescale in frequency
                     physics::gw_hardening_time_freq(
-                        mbh_mass_edges_grams[m1], mbh_mass_edges_grams[m2], frst_orb_zedges[z][f], &tauf
+                        mbh_mass_edges_grams[m1], mbh_mass_edges_grams[m2], frst_orb_zedges[z][f], &tauf[m1][m2][z]
                     );
+
+                    if (tauf[m1][m2][z] > 0.0) {
+                        pos_tauf++;
+                    }
 
                     // expectation value for differential number of binaries
                     // this is:  $d^3 n / [dlog10(M1) dlog10(M2) dz dlog_e(f)]$
                     //! FIX: make sure this is d4n/[dlog10(m1) dlog10(m2) dz dlnf]  --- i.e. the log10 of both masses.
-                    diff_numb[m1][m2][z] = num_dens[m1][m2][z] * cosmo_fact[z] * tauf;
+                    diff_numb[m1][m2][z] = num_dens[m1][m2][z] * cosmo_fact[z] * tauf[m1][m2][z];
 
                     // ---- Integrate over differential number
 
@@ -315,6 +376,10 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
                     // we've added together 2-sides on 3 dimensions, so divide by 2^3 = 8
                     numb_expect[m1c][m2c][zc] /= 8.0;
 
+                    if (numb_expect[m1c][m2c][zc] > 0.0) {
+                        pos_numb_expect++;
+                    }
+
                     // construct Poisson distribution centered on the expectation value
                     std::poisson_distribution<int> dist(numb_expect[m1c][m2c][zc]);
 
@@ -326,10 +391,18 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
                     );
 
                     for(r = 0; r < num_reals; r++) {
+                        //! FIX: consider implementing a cutoff to approximate the Poisson distribution
+                        //!      with a normal distribution.
                         numb_in_real = dist(rng);
                         if (numb_in_real == 0) continue;
                         gwb[f][r] += hs2 * numb_in_real / dlnf[f];
                     } // r
+
+                    // Prepare flatted output for HDF5
+                    utils::index_3d_to_1d(m1c, m2c, zc, num_mass_cents, num_mass_cents, num_redz_cents, &idx);
+                    numb_expect_flat[idx] = numb_expect[m1c][m2c][zc];
+                    utils::index_3d_to_1d(m1, m2, z, num_mass_edges, num_mass_edges, num_redz_edges, &idx);
+                    tauf_flat[idx] = tauf[m1][m2][z];
 
                 } // z
             } // m2
@@ -337,26 +410,65 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
 
         for(r = 0; r < num_reals; r++) {
             gwb[f][r] = sqrt(gwb[f][r]);
+            if (gwb[f][r] > 0.0) {
+                pos_gwb++;
+            }
         }
 
+        // ---- Save output to HDF5 file
+
+        // Write hyperslab at [f, :, :, :]
+        // h5_numb_expect.write_slice_at(f, numb_expect, num_mass_cents, num_mass_cents, num_redz_cents);
+
     } // f
+
+    int num_numb_expect = (num_freq_cents * num_mass_cents * num_mass_cents * num_redz_cents);
+    double pos_frac_numb_expect = (double)pos_numb_expect / num_numb_expect;
+    double pos_frac_tauf = (double)pos_tauf / num_numb_expect;
+    double pos_frac_gwb = (double)pos_gwb / (num_freq_cents * num_reals);
+    int num_num_dens = (num_mass_edges * num_mass_edges * num_redz_edges);
+    double pos_frac_num_dens = (double)pos_num_dens / num_num_dens;
+
+    printf("`numb_expect` positive = %d/%d = %.2e\n", pos_numb_expect, num_numb_expect, pos_frac_numb_expect);
+    printf("`tauf`        positive = %d/%d = %.2e\n", pos_tauf, num_numb_expect, pos_frac_tauf);
+    printf("`gwb`         positive = %d/%d = %.2e\n", pos_gwb, num_freq_cents*num_reals, pos_frac_gwb);
+    printf("`num_dens`    positive = %d/%d = %.2e\n", pos_num_dens, num_num_dens, pos_frac_num_dens);
+
+    #ifdef DEBUG
+    printf("\tSAM::grav_waves(): Calculating GWB completed.\n");
+    #endif
+
+    // ---- Write additional data to HDF5 file
+
+    #ifdef DEBUG
+    printf("\tSAM::grav_waves(): writing data to HDF5...\n");
+    #endif
+
+    // utils::hdf5_write_array2d<double>(h5_file, "gw", "gwb", gwb, num_freq_cents, num_reals);
+    // utils::hdf5_write_array3d<double>(
+    //     h5_file, NULL, "num_dens", num_dens, num_mass_cents, num_mass_cents, num_redz_cents
+    // );
+
+    // hdf5_write_meta(h5_file, *this, pta, gw);
 
     // ---- Clean up
 
     #ifdef DEBUG
-    printf("\tSAM::grav_waves(): Calculating GWB completed.  Cleaning up...\n");
+    printf("\tSAM::grav_waves(): Cleaning up...\n");
     #endif
 
     for(m1 = 0; m1 < num_mass_edges; m1++) {
         for(m2 = 0; m2 < num_mass_edges; m2++) {
             free(num_dens[m1][m2]);
             free(diff_numb[m1][m2]);
+            free(tauf[m1][m2]);
             if (m1 > 0 && m2 > 0) {
                 free(numb_expect[m1-1][m2-1]);
             }
         }
         free(num_dens[m1]);
         free(diff_numb[m1]);
+        free(tauf[m1]);
         if (m1 > 0) {
             free(mchirp_cents[m1-1]);
             free(numb_expect[m1-1]);
@@ -365,6 +477,15 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
     free(num_dens);
     free(diff_numb);
     free(mchirp_cents);
+    free(tauf);
 
+    free(numb_expect_flat);
+    free(tauf_flat);
+
+    // Close HDF5 dataset and file
+    // H5Fclose(h5_file);
+
+    printf("SAM::grav_waves(): DONE!\n");
 };
+
 

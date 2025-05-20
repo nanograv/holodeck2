@@ -15,6 +15,7 @@
 
 using namespace std;
 
+
 namespace utils {
 
     template <typename T>
@@ -62,25 +63,26 @@ namespace utils {
     template <> inline hid_t get_hdf5_type<double>() { return H5T_NATIVE_DOUBLE; }
     template <> inline hid_t get_hdf5_type<long>() { return H5T_NATIVE_LONG; }
 
-    hid_t open_or_create_group(hid_t parent, const char* group_name);
+    hid_t hdf5_open_or_create_group(hid_t parent, const char* group_name);
 
 
     template <typename T>
     void hdf5_write_scalar(hid_t h5_file, const char* group_name, const char* name, const T& value) {
+        printf("hdf5_write_scalar(%s/%s)\n", group_name, name);
         static_assert(
             std::is_arithmetic<T>::value,
             "hdf5_write_scalar only supports primitive numeric types"
         );
-        // printf("\thdf5_write_scalar(): %s - %s\n", group_name, name);
 
         hid_t dtype = get_hdf5_type<T>();
-        hid_t group = open_or_create_group(h5_file, group_name);
+        hid_t group = hdf5_open_or_create_group(h5_file, group_name);
         hid_t space = H5Screate(H5S_SCALAR);
         hid_t dset = H5Dcreate(
             group, name, dtype, space,
             H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT
         );
 
+        printf("\thdf5_write_scalar(%s/%s): writing...\n", group_name, name);
         H5Dwrite(dset, dtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, &value);
 
         H5Dclose(dset);
@@ -94,13 +96,14 @@ namespace utils {
         hid_t h5_file, const char* group_name, const char* dataset_name,
         const T* data, const int data_size
     ) {
+        printf("hdf5_write_array1d(%s/%s)\n", group_name, dataset_name);
         static_assert(
             std::is_arithmetic<T>::value,
             "hdf5_write_scalar only supports primitive numeric types"
         );
 
         hid_t dtype = get_hdf5_type<T>();
-        hid_t group = open_or_create_group(h5_file, group_name);
+        hid_t group = hdf5_open_or_create_group(h5_file, group_name);
         hsize_t dims[1] = {static_cast<hsize_t>(data_size)};
         hid_t space = H5Screate_simple(1, dims, nullptr);
         hid_t dset = H5Dcreate(
@@ -108,6 +111,7 @@ namespace utils {
             H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT
         );
 
+        printf("\thdf5_write_array1d(%s/%s): writing...\n", group_name, dataset_name);
         H5Dwrite(dset, dtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
 
         // Close the dataset and group
@@ -120,15 +124,21 @@ namespace utils {
     template <typename T>
     void hdf5_write_array2d(
         hid_t h5_file, const char* group_name, const char* dataset_name,
-        const T** data, const int xsize, const int ysize
+        T** data, const int xsize, const int ysize
     ) {
+        printf("hdf5_write_array2d(%s/%s)\n", group_name, dataset_name);
         static_assert(
             std::is_arithmetic<T>::value,
-            "hdf5_write_scalar only supports primitive numeric types"
+            "hdf5_write_array2d only supports primitive numeric types"
         );
 
         hid_t dtype = get_hdf5_type<T>();
-        hid_t group = open_or_create_group(h5_file, group_name);
+        hid_t group;
+        if (group_name != nullptr) {
+            group = hdf5_open_or_create_group(h5_file, group_name);
+        } else {
+            group = h5_file;
+        }
         hsize_t dims[2] = {static_cast<hsize_t>(xsize), static_cast<hsize_t>(ysize)};
         hid_t space = H5Screate_simple(2, dims, nullptr);
         hid_t dset = H5Dcreate(
@@ -147,15 +157,141 @@ namespace utils {
         }
 
         // Write the flattened data to the dataset
+        printf("\thdf5_write_array2d(%s/%s): writing...\n", group_name, dataset_name);
         H5Dwrite(dset, dtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, data_flat);
 
         // Close the dataset and group
         H5Dclose(dset);
         H5Sclose(space);
-        H5Gclose(group);
+        if (group_name != nullptr) {
+            H5Gclose(group);
+        }
+        delete[] data_flat;
+
+    }
+
+
+    template <typename T>
+    void hdf5_write_array3d(
+        hid_t h5_file, const char* group_name, const char* dataset_name,
+        T*** data, const int xsize, const int ysize, const int zsize
+    ) {
+        printf("hdf5_write_array3d(%s/%s)\n", group_name, dataset_name);
+
+        static_assert(
+            std::is_arithmetic<T>::value,
+            "hdf5_write_array3d only supports primitive numeric types"
+        );
+
+        hid_t dtype = get_hdf5_type<T>();
+        hid_t group;
+        if (group_name != nullptr) {
+            group = hdf5_open_or_create_group(h5_file, group_name);
+        } else {
+            group = h5_file;
+        }
+        hsize_t dims[3] = {static_cast<hsize_t>(xsize), static_cast<hsize_t>(ysize), static_cast<hsize_t>(zsize)};
+        hid_t space = H5Screate_simple(3, dims, nullptr);
+        hid_t dset = H5Dcreate(
+            group, dataset_name, dtype, space,
+            H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT
+        );
+
+        // Flatten the 3D array into a 1D array
+        T* data_flat = new T[xsize * ysize * zsize];
+        int idx;
+        for (int i = 0; i < xsize; ++i) {
+            for (int j = 0; j < ysize; ++j) {
+                for (int k = 0; k < zsize; ++j) {
+                    index_3d_to_1d(i, j, k, xsize, ysize, zsize, &idx);
+                    data_flat[idx] = data[i][j][k];
+                }
+            }
+        }
+
+        // Write the flattened data to the dataset
+        printf("\thdf5_write_array3d(%s/%s): writing...\n", group_name, dataset_name);
+        H5Dwrite(dset, dtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, data_flat);
+
+        // Close the dataset and group
+        H5Dclose(dset);
+        H5Sclose(space);
+        if (group_name != nullptr) {
+            H5Gclose(group);
+        }
+        delete[] data_flat;
     }
 
 }
+
+
+class H5Slice_4D {
+    public:
+    // hid_t file;
+    const char* data_name;
+    hsize_t dims[4];
+    hid_t dspace;
+    hid_t dset;
+    int slice_size;
+
+    H5Slice_4D(hid_t h5_file, const char* data_name, int size0, int size1, int size2, int size3) {
+        // this->file = h5_file;
+        this->data_name = data_name;
+        dims[0] = static_cast<hsize_t>(size0);
+        dims[1] = static_cast<hsize_t>(size1);
+        dims[2] = static_cast<hsize_t>(size2);
+        dims[3] = static_cast<hsize_t>(size3);
+        slice_size = size1 * size2 * size3;
+
+        dspace = H5Screate_simple(4, dims, nullptr);
+        dset = H5Dcreate(
+            h5_file, data_name, H5T_NATIVE_DOUBLE, dspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT
+        );
+        // H5Sclose(dspace);  // dataset now owns its space, so the dataspace can be closed
+    }
+    ~H5Slice_4D() {
+        H5Sclose(dspace);
+        H5Dclose(dset);
+    }
+
+    void write_slice_at(int idx0, double*** data_slice, int size1, int size2, int size3) {
+
+        printf("H5Slice_4D(%s).write_slice_at(%d)\n", data_name, idx0);
+
+        hsize_t h5_offset[4] = {static_cast<hsize_t>(idx0), 0, 0, 0};
+
+        if (size1*size2*size3 != slice_size)
+            throw std::runtime_error("INCONSISTENT SLICE SIZE!");
+        if ((size1 != dims[1]) || (size2 != dims[2]) || (size3 != dims[3]))
+            throw std::runtime_error("INCONSISTENT SLICE SIZE!");
+
+        double* data_flat = (double *)malloc(slice_size * sizeof(double));
+        int idx;
+        for (int i = 0; i < size1; i++) {
+            for (int j = 0; j < size2; j++) {
+                for (int k = 0; k < size2; k++) {
+                    utils::index_3d_to_1d(i, j, k, size1, size2, size3, &idx);
+                    data_flat[idx] = data_slice[i][j][k];
+                }
+            }
+        }
+
+        hsize_t h5_count[4] = { 1, dims[1], dims[2], dims[3] };
+
+        hid_t filespace = H5Dget_space(dset);
+        H5Sselect_hyperslab(filespace, H5S_SELECT_SET, h5_offset, nullptr, h5_count, nullptr);
+
+        hid_t memspace = H5Screate_simple(4, h5_count, nullptr);
+        printf("\tH5Slice_4D(%s).write_slice_at(%d): writing...\n", data_name, idx0);
+        H5Dwrite(dset, H5T_NATIVE_DOUBLE, memspace, filespace, H5P_DEFAULT, data_flat);
+
+        H5Sclose(memspace);
+        H5Sclose(filespace);
+        free(data_flat);
+    }
+
+};
+
 
 /*
 import numpy as np

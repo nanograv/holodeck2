@@ -127,7 +127,7 @@ namespace utils {
     // =========================================================================
 
 
-    hid_t open_or_create_group(hid_t parent, const char* group_name) {
+    hid_t hdf5_open_or_create_group(hid_t parent, const char* group_name) {
         // Suppress HDF5 automatic error printing
         H5E_auto2_t old_func;
         void* old_client_data;
