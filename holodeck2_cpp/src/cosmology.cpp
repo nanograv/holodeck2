@@ -42,8 +42,8 @@ int Cosmology::find_lower_index_uniform_redz_log10(double zlog10) {
     #ifdef DEBUG
     if (idx < 0 || idx >= grid_size) {
         std::string msg = std::format(
-            "Index out of range for interpolation! idx={:d} vs. [0, {:d}]",
-            idx, grid_size-1
+            "Index out of range for interpolation! idx={:d} vs. [0, {:d})\n\t zlog10={:.2e} vs. [{:.2e},{:.2e}] dlog10z={:.2e}\n",
+            idx, grid_size, zlog10, redz_log10[0], redz_log10[grid_size-1], dlog10z
         );
         throw std::out_of_range(msg);
     }
@@ -96,12 +96,12 @@ void Cosmology::load_cosmo_data(const std::string& path) {
     if (grid_size <= 0) throw std::runtime_error("Failed to parse N from metadata");
 
     // Allocate arrays
-    redz_log10 = new double[grid_size];
-    scafa_log10    = new double[grid_size];
-    dcom_log10     = new double[grid_size];
-    vcom_log10     = new double[grid_size];
-    tlook_log10    = new double[grid_size];
-    efunc_log10    = new double[grid_size];
+    redz_log10  = new double[grid_size];
+    scafa_log10 = new double[grid_size];
+    dcom_log10  = new double[grid_size];
+    vcom_log10  = new double[grid_size];
+    tlook_log10 = new double[grid_size];
+    efunc_log10 = new double[grid_size];
 
     // --- Skip column header line
     std::getline(file, line);
@@ -146,6 +146,7 @@ void Cosmology::load_cosmo_data(const std::string& path) {
 
 void Cosmology::value_from_redz(double redz, double* values_log10, double* out_val) {
     double zlog10 = log10(redz);
+    // printf("Cosmology::value_from_redz() : zlog10=%.2e redz_log10[0]=%.2e (%p)\n", zlog10, redz_log10[0], (void*)redz_log10);
     int idx = find_lower_index_uniform_redz_log10(zlog10);
     *out_val = pow(10.0, lin_interp_at_index(zlog10, idx, redz_log10, values_log10));
 }

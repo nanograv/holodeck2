@@ -16,6 +16,57 @@
 using namespace std;
 
 
+#include "quill/Backend.h"
+#include "quill/Frontend.h"
+#include "quill/Logger.h"
+#include "quill/LogMacros.h"
+
+#include "quill/sinks/FileSink.h"
+#include "quill/sinks/ConsoleSink.h"
+
+inline quill::Logger* get_logger()
+{
+    static quill::Logger* logger = []() -> quill::Logger* {
+        // Start backend thread (only once, thread-safe)
+        quill::Backend::start();
+
+        // --- Console Sink ---
+        auto console_sink = quill::Frontend::create_or_get_sink<quill::ConsoleSink>("console_sink");
+
+        // Optional: restrict console to warnings+
+        console_sink->set_log_level_filter(quill::LogLevel::Warning);
+
+        // --- File Sink ---
+        auto file_sink = quill::Frontend::create_or_get_sink<quill::FileSink>(
+            "logs/app.log",
+            [] {
+                quill::FileSinkConfig cfg;
+                cfg.set_open_mode('w');  // or 'a' for append
+                cfg.set_filename_append_option(quill::FilenameAppendOption::None);
+                return cfg;
+            }(),
+            quill::FileEventNotifier{});
+
+        file_sink->set_log_level_filter(quill::LogLevel::Debug);
+
+        // --- Combine sinks into logger ---
+        std::vector<std::shared_ptr<quill::Sink>> sinks = {console_sink, file_sink};
+        auto* logger = quill::Frontend::create_or_get_logger("global_logger", std::move(sinks));
+
+        // Optional: set logger level (applies to both unless overridden on sinks)
+        // logger->set_log_level(quill::LogLevel::Debug);
+
+        return logger;
+    }();
+
+    return logger;
+}
+
+
+
+
+
+
 namespace utils {
 
     template <typename T>
@@ -68,7 +119,7 @@ namespace utils {
 
     template <typename T>
     void hdf5_write_scalar(hid_t h5_file, const char* group_name, const char* name, const T& value) {
-        printf("hdf5_write_scalar(%s/%s)\n", group_name, name);
+        // printf("hdf5_write_scalar(%s/%s)\n", group_name, name);
         static_assert(
             std::is_arithmetic<T>::value,
             "hdf5_write_scalar only supports primitive numeric types"
@@ -82,7 +133,7 @@ namespace utils {
             H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT
         );
 
-        printf("\thdf5_write_scalar(%s/%s): writing...\n", group_name, name);
+        // printf("\thdf5_write_scalar(%s/%s): writing...\n", group_name, name);
         H5Dwrite(dset, dtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, &value);
 
         H5Dclose(dset);
@@ -96,7 +147,7 @@ namespace utils {
         hid_t h5_file, const char* group_name, const char* dataset_name,
         const T* data, const int data_size
     ) {
-        printf("hdf5_write_array1d(%s/%s)\n", group_name, dataset_name);
+        // printf("hdf5_write_array1d(%s/%s)\n", group_name, dataset_name);
         static_assert(
             std::is_arithmetic<T>::value,
             "hdf5_write_scalar only supports primitive numeric types"
@@ -111,7 +162,7 @@ namespace utils {
             H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT
         );
 
-        printf("\thdf5_write_array1d(%s/%s): writing...\n", group_name, dataset_name);
+        // printf("\thdf5_write_array1d(%s/%s): writing...\n", group_name, dataset_name);
         H5Dwrite(dset, dtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
 
         // Close the dataset and group
@@ -126,7 +177,7 @@ namespace utils {
         hid_t h5_file, const char* group_name, const char* dataset_name,
         T** data, const int xsize, const int ysize
     ) {
-        printf("hdf5_write_array2d(%s/%s)\n", group_name, dataset_name);
+        // printf("hdf5_write_array2d(%s/%s)\n", group_name, dataset_name);
         static_assert(
             std::is_arithmetic<T>::value,
             "hdf5_write_array2d only supports primitive numeric types"
@@ -157,7 +208,7 @@ namespace utils {
         }
 
         // Write the flattened data to the dataset
-        printf("\thdf5_write_array2d(%s/%s): writing...\n", group_name, dataset_name);
+        // printf("\thdf5_write_array2d(%s/%s): writing...\n", group_name, dataset_name);
         H5Dwrite(dset, dtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, data_flat);
 
         // Close the dataset and group
@@ -176,7 +227,7 @@ namespace utils {
         hid_t h5_file, const char* group_name, const char* dataset_name,
         T*** data, const int xsize, const int ysize, const int zsize
     ) {
-        printf("hdf5_write_array3d(%s/%s)\n", group_name, dataset_name);
+        // printf("hdf5_write_array3d(%s/%s) : shape %d,%d,%d\n", group_name, dataset_name, xsize, ysize, zsize);
 
         static_assert(
             std::is_arithmetic<T>::value,
@@ -202,7 +253,7 @@ namespace utils {
         int idx;
         for (int i = 0; i < xsize; ++i) {
             for (int j = 0; j < ysize; ++j) {
-                for (int k = 0; k < zsize; ++j) {
+                for (int k = 0; k < zsize; ++k) {
                     index_3d_to_1d(i, j, k, xsize, ysize, zsize, &idx);
                     data_flat[idx] = data[i][j][k];
                 }
@@ -210,7 +261,7 @@ namespace utils {
         }
 
         // Write the flattened data to the dataset
-        printf("\thdf5_write_array3d(%s/%s): writing...\n", group_name, dataset_name);
+        // printf("\thdf5_write_array3d(%s/%s): writing...\n", group_name, dataset_name);
         H5Dwrite(dset, dtype, H5S_ALL, H5S_ALL, H5P_DEFAULT, data_flat);
 
         // Close the dataset and group
@@ -256,20 +307,22 @@ class H5Slice_4D {
 
     void write_slice_at(int idx0, double*** data_slice, int size1, int size2, int size3) {
 
-        printf("H5Slice_4D(%s).write_slice_at(%d)\n", data_name, idx0);
+        // printf("H5Slice_4D(%s).write_slice_at(%d)\n", data_name, idx0);
 
         hsize_t h5_offset[4] = {static_cast<hsize_t>(idx0), 0, 0, 0};
 
         if (size1*size2*size3 != slice_size)
-            throw std::runtime_error("INCONSISTENT SLICE SIZE!");
+            throw std::runtime_error("INCONSISTENT SLICE!  total size does not match `slice_size`!");
         if ((size1 != dims[1]) || (size2 != dims[2]) || (size3 != dims[3]))
-            throw std::runtime_error("INCONSISTENT SLICE SIZE!");
+            throw std::runtime_error("INCONSISTENT SLICE!  `size` does not match `dims`!");
+        if ((idx0 >= dims[0]))
+            throw std::runtime_error("Cannot write at slice beyond dims[0]!");
 
         double* data_flat = (double *)malloc(slice_size * sizeof(double));
         int idx;
         for (int i = 0; i < size1; i++) {
             for (int j = 0; j < size2; j++) {
-                for (int k = 0; k < size2; k++) {
+                for (int k = 0; k < size3; k++) {
                     utils::index_3d_to_1d(i, j, k, size1, size2, size3, &idx);
                     data_flat[idx] = data_slice[i][j][k];
                 }
@@ -282,7 +335,7 @@ class H5Slice_4D {
         H5Sselect_hyperslab(filespace, H5S_SELECT_SET, h5_offset, nullptr, h5_count, nullptr);
 
         hid_t memspace = H5Screate_simple(4, h5_count, nullptr);
-        printf("\tH5Slice_4D(%s).write_slice_at(%d): writing...\n", data_name, idx0);
+        // printf("\tH5Slice_4D(%s).write_slice_at(%d): writing...\n", data_name, idx0);
         H5Dwrite(dset, H5T_NATIVE_DOUBLE, memspace, filespace, H5P_DEFAULT, data_flat);
 
         H5Sclose(memspace);

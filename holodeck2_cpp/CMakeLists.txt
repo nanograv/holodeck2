@@ -20,8 +20,9 @@ set(CMAKE_CXX_STANDARD 20)
 
 set(DATA_PATH "${CMAKE_CURRENT_SOURCE_DIR}/data")
 
+include(FetchContent)
 
-add_compile_definitions(DEBUG)
+# add_compile_definitions(DEBUG)
 
 
 
@@ -62,6 +63,23 @@ endif()
 message(STATUS "HDF5 include: ${HDF5_INCLUDE_DIRS}")
 message(STATUS "HDF5 libs:    ${HDF5_LIBRARIES}")
 
+# ---- Quill (C++ logging package, installed via homebrew)
+
+# set(QUILL_DIR "/opt/homebrew")
+
+# include_directories("${QUILL_DIR}/include")
+# link_directories("${QUILL_DIR}/lib")
+
+FetchContent_Declare(
+  quill
+  GIT_REPOSITORY https://github.com/odygrd/quill.git
+  GIT_TAG        v9.0.2
+  GIT_SHALLOW    TRUE
+  GIT_PROGRESS   TRUE
+)
+
+FetchContent_MakeAvailable(quill)
+
 
 # ==============================================================================
 # ====    Setup Module    ====
@@ -90,6 +108,7 @@ set_target_properties(holodeck2_cpp PROPERTIES
 target_include_directories(holodeck2_cpp PRIVATE ${Python3_INCLUDE_DIRS})
 target_include_directories(holodeck2_cpp PRIVATE ${HDF5_INCLUDE_DIRS})
 target_link_libraries(holodeck2_cpp PRIVATE ${HDF5_LIBRARIES})
+target_link_libraries(holodeck2_cpp PRIVATE quill)
 
 # Make symlink to CWD
 add_custom_command(TARGET holodeck2_cpp POST_BUILD
@@ -114,9 +133,14 @@ add_executable(holodeck2cpp
 
 target_compile_definitions(holodeck2cpp PUBLIC PATH_DATA_DIR="${DATA_PATH}")
 
+target_compile_options(holodeck2cpp PRIVATE -fsanitize=address -g)
+target_link_options(holodeck2cpp PRIVATE -fsanitize=address)
+
 target_include_directories(holodeck2cpp PRIVATE ${HDF5_INCLUDE_DIRS})
 target_link_libraries(holodeck2cpp PRIVATE ${HDF5_LIBRARIES})
+target_link_libraries(holodeck2cpp PRIVATE quill)
 
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -g")
 
 # Make symlink to executable in CWD
 add_custom_command(TARGET holodeck2cpp POST_BUILD
@@ -138,3 +162,4 @@ add_executable(test_holodeck
 target_compile_definitions(test_holodeck PUBLIC PATH_DATA_DIR="${DATA_PATH}")
 target_include_directories(test_holodeck PRIVATE ${HDF5_INCLUDE_DIRS})
 target_link_libraries(test_holodeck PRIVATE ${HDF5_LIBRARIES})
+target_link_libraries(test_holodeck PRIVATE quill)
