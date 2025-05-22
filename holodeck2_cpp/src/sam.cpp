@@ -13,16 +13,19 @@
 
 #define FNAME_OUTPUT_HDF5 "output.hdf5"
 
+constexpr double FLOOR_NUMB_EXPECT = 1.0E-10;
+
 
 void hdf5_write_meta(hid_t h5_file, SAM &sam, PTA &pta, GravWaves &gw) {
     // Write metadata to the HDF5 file
 
-    printf("hdf5_write_meta()\n");
+    LOG_DEBUG(get_logger(), "Writing metadata to HDF5...");
 
     //! FIX: WRITE SETTINGS/CONFIG TO HDF5 FILE ALSO
     //! ......
 
     // Write grid information to HDF5 file
+    LOG_DEBUG(get_logger(), "Writing grid metadata to HDF5 file...");
     const char* group_name = "grid";
     utils::hdf5_write_array1d(h5_file, group_name, "mass_edges", sam.mass_edges, sam.num_mass_edges);
     utils::hdf5_write_array1d(h5_file, group_name, "mass_cents", sam.mass_cents, sam.num_mass_edges-1);
@@ -68,9 +71,21 @@ double SAM::gmr_illustris(double mstar_tot, double mstar_rat, double rz) {
 }
 
 
+/**
+ * Evaluate a Schechter Galaxy Stellar-Mass Function (GSMF), to find galaxy number-density.
+ *
+ * @param mstar        Galaxy stellar-mass [Msol].
+ * @param redz         Redshift [].
+ * @param phi_terms
+ * @param mchar_terms
+ * @param alpha
+ *
+ * @return             Galaxy number density for the given stellar mass [Mpc^-3].
+ *
+ */
 double SAM::gsmf_single_schechter(double mstar, double redz, double phi_terms[3], double mchar_terms[3], double alpha) {
     double rz2 = pow(redz, 2);
-    double mchar = MSOL * pow(10.0, mchar_terms[0] + mchar_terms[1] * redz + mchar_terms[2] * rz2);
+    double mchar = pow(10.0, mchar_terms[0] + mchar_terms[1] * redz + mchar_terms[2] * rz2);
     double mm = mstar / mchar;
     return (
         LOG10 *
@@ -83,11 +98,18 @@ double SAM::gsmf_single_schechter(double mstar, double redz, double phi_terms[3]
 
 double SAM::gsmf_double_schechter(double mstar, double redz) {
     double phi = gsmf_single_schechter(mstar, redz, this->gsmf_log10_phi1, this->gsmf_log10_mchar, this->gsmf_alpha1);
-    phi = phi +  gsmf_single_schechter(mstar, redz, this->gsmf_log10_phi2, this->gsmf_log10_mchar, this->gsmf_alpha2);
+    phi +=       gsmf_single_schechter(mstar, redz, this->gsmf_log10_phi2, this->gsmf_log10_mchar, this->gsmf_alpha2);
     return phi;
 }
 
 
+/**
+ * Convert from BH mass to stellar mass using Mbh–-Mbulge relation.
+ *
+ * @param mbh   Black-hole (MBH) mass [Msol].
+ * @return      Stellar-mass of host galaxy [Msol].
+ *
+ */
 double SAM::mmbulge_mstar_from_mbh(double mbh) {
     // get bulge mass
     double mstar = (log10(mbh) - this->mmbulge_mass_amp_log10) / this->mmbulge_plaw;
@@ -144,9 +166,7 @@ double SAM::number_density(double mbh1, double mbh2, double rz, bool return_galg
 
 
 void SAM::grav_waves(PTA &pta, GravWaves &gw) {
-    #ifdef DEBUG
-    printf("SAM::grav_waves()\n");
-    #endif
+    LOG_DEBUG(get_logger(), "SAM::grav_waves(): allocating...");
 
     // Grid/domain sizes
     int num_mass_edges = this->num_mass_edges;
@@ -212,9 +232,7 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
     double* tauf_flat = (double*)malloc(num_mass_edges * num_mass_edges * num_redz_edges * sizeof(double));
     double* numb_expect_flat = (double*)malloc(num_mass_cents * num_mass_cents * num_redz_cents * sizeof(double));
 
-    #ifdef DEBUG
-    printf("\tSAM::grav_waves(): allocation completed.  Initializing...\n");
-    #endif
+    LOG_DEBUG(get_logger(), "SAM::grav_waves(): allocation completed.  Initializing...\n");
 
     for(m1 = 0; m1 < num_mass_edges; m1++) {
         mbh_mass_edges_grams[m1] = mass_edges[m1] * MSOL;
@@ -283,11 +301,8 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
         }
     }
 
-
     // Create HDF5 file
-    #ifdef DEBUG
-    printf("\tSAM::grav_waves(): intializing hdf5 file '%s' for output...\n", FNAME_OUTPUT_HDF5);
-    #endif
+    LOG_DEBUG(get_logger(), "SAM::grav_waves(): intializing hdf5 file '{}' for output...", FNAME_OUTPUT_HDF5);
 
     hid_t h5_file = H5Fcreate(FNAME_OUTPUT_HDF5, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
     H5Slice_4D h5_numb_expect = H5Slice_4D(
@@ -297,9 +312,9 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
 
     // ---- GWB Calculation
 
-    #ifdef DEBUG
-    printf("\tSAM::grav_waves(): initialization completed.  Calculating GWB...\n");
-    #endif
+    LOG_DEBUG(get_logger(), "SAM::grav_waves(): initialization completed.  Calculating GWB...");
+
+    int num_floor_numb_expect = 0;
 
     for(f = 0; f < num_freq_cents; f++) {
 
@@ -315,7 +330,7 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
                     }
 
                     //! FIX: consider implementing `num_dens` cutoff: if too low, skip
-                    //! NOTE: make sure skipped values are zero
+                    //! NOTE: make sure skipped values are set to zero as needed (i.e. if initialized w/ malloc)
 
                     // ---- Calculate (expectation-value) number of binaries in the universe at this bin
 
@@ -363,6 +378,11 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
 
                     // we've added together 2-sides on 3 dimensions, so divide by 2^3 = 8
                     numb_expect[m1c][m2c][zc] /= 8.0;
+                    if ((FLOOR_NUMB_EXPECT > 0.0) && (numb_expect[m1c][m2c][zc] < FLOOR_NUMB_EXPECT)) {
+                        numb_expect[m1c][m2c][zc] = 0.0;
+                        num_floor_numb_expect++;
+                        continue;
+                    }
 
                     // construct Poisson distribution centered on the expectation value
                     std::poisson_distribution<int> dist(numb_expect[m1c][m2c][zc]);
@@ -403,15 +423,21 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
 
     } // f
 
-    #ifdef DEBUG
-    printf("\tSAM::grav_waves(): Calculating GWB completed.\n");
-    #endif
+    LOG_DEBUG(get_logger(), "SAM::grav_waves(): Calculating GWB completed.");
+
+    // ---- Check/report diagnostics
+
+    if (FLOOR_NUMB_EXPECT > 0.0) {
+        int tot_num = num_freq_cents * num_mass_cents * num_mass_cents * num_redz_cents;
+        LOG_INFO(
+            get_logger(), "Number below floor ({:.2e}): {}/{}={:.2e}",
+            FLOOR_NUMB_EXPECT, num_floor_numb_expect, tot_num, (double)num_floor_numb_expect/tot_num
+        );
+    }
+
+    LOG_DEBUG(get_logger(), "Writing data to HDF5...");
 
     // ---- Write additional data to HDF5 file
-
-    #ifdef DEBUG
-    printf("\tSAM::grav_waves(): writing data to HDF5...\n");
-    #endif
 
     utils::hdf5_write_array2d<double>(
         h5_file, NULL, "gwb", gwb,
@@ -426,9 +452,7 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
 
     // ---- Clean up
 
-    #ifdef DEBUG
-    printf("\tSAM::grav_waves(): Cleaning up...\n");
-    #endif
+    LOG_DEBUG(get_logger(), "SAM::grav_waves(): Wrote data to HDF5.  Cleaning up...");
 
     for(m1 = 0; m1 < num_mass_edges; m1++) {
         for(m2 = 0; m2 < num_mass_edges; m2++) {
@@ -458,7 +482,8 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
     // Close HDF5 dataset and file
     H5Fclose(h5_file);
 
-    printf("SAM::grav_waves(): DONE!\n");
+    LOG_DEBUG(get_logger(), "SAM::grav_waves(): completed.");
+
 };
 
 

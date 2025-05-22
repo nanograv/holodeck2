@@ -24,6 +24,9 @@ using namespace std;
 #include "quill/sinks/FileSink.h"
 #include "quill/sinks/ConsoleSink.h"
 
+#define PATH_LOG_OUTPUT "logs/main.txt"
+
+
 inline quill::Logger* get_logger()
 {
     static quill::Logger* logger = []() -> quill::Logger* {
@@ -34,27 +37,40 @@ inline quill::Logger* get_logger()
         auto console_sink = quill::Frontend::create_or_get_sink<quill::ConsoleSink>("console_sink");
 
         // Optional: restrict console to warnings+
-        console_sink->set_log_level_filter(quill::LogLevel::Warning);
+        console_sink->set_log_level_filter(quill::LogLevel::Info);
 
         // --- File Sink ---
         auto file_sink = quill::Frontend::create_or_get_sink<quill::FileSink>(
-            "logs/app.log",
+            PATH_LOG_OUTPUT,
             [] {
                 quill::FileSinkConfig cfg;
                 cfg.set_open_mode('w');  // or 'a' for append
+                // cfg.set_filename_append_option(quill::FilenameAppendOption::StartDateTime);
                 cfg.set_filename_append_option(quill::FilenameAppendOption::None);
                 return cfg;
             }(),
-            quill::FileEventNotifier{});
+            quill::FileEventNotifier{}
+        );
 
         file_sink->set_log_level_filter(quill::LogLevel::Debug);
 
         // --- Combine sinks into logger ---
         std::vector<std::shared_ptr<quill::Sink>> sinks = {console_sink, file_sink};
-        auto* logger = quill::Frontend::create_or_get_logger("global_logger", std::move(sinks));
 
-        // Optional: set logger level (applies to both unless overridden on sinks)
-        // logger->set_log_level(quill::LogLevel::Debug);
+        auto* logger = quill::Frontend::create_or_get_logger(
+            "global_logger", std::move(sinks),
+            quill::PatternFormatterOptions{
+                "%(time) [%(thread_id)] %(short_source_location:<28) "
+                "%(log_level:<7) %(message)",
+                "%H:%M:%S.%Qus"
+            }
+        );
+
+        // NOTE: `logger` level needs to be lower than any desired sink levels!
+        logger->set_log_level(quill::LogLevel::Debug);
+
+        //! FIX: NOT WORKING
+        // LOG_INFO(logger, "Logging to file '%s'.", file_sink->get_filename());
 
         return logger;
     }();

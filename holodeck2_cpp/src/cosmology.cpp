@@ -14,14 +14,14 @@ namespace {
 
 
 Cosmology::Cosmology() {
-    printf("Loading cosmology data from %s\n", full_path.c_str());
+    LOG_DEBUG(get_logger(), "Loading cosmology data from {:s}\n", full_path.c_str());
 
     load_cosmo_data(full_path.string());
     H0_cgs = H0 * KM_S_MPC;    // [1/sec]
     H0_inv = 1.0 / H0_cgs;     // [sec]
 
-    printf(
-        "Loaded grid with %d points, redshifts between [%.2e, %.2e]\n",
+    LOG_DEBUG(get_logger(),
+        "Loaded cosmo grid with {} points, redshifts between [{:.2e}, {:.2e}]\n",
         grid_size, pow(10.0, redz_log10[0]), pow(10.0, redz_log10[grid_size-1])
     );
 };
