@@ -2,20 +2,14 @@
  *
  */
 
-#ifndef UTILS_H
-#define UTILS_H
 
-#include <algorithm>
-#include <cmath>
-#include <cstdio>
-
-#include "hdf5.h"
+#include "utils.h"
 
 using namespace std;
 
 namespace utils {
 
-    bool is_almost_equal(double a, double b, double atol = 1E-8, double rtol = 1E-6) {
+    bool is_almost_equal(double a, double b, double atol, double rtol) {
         double rval;
         if ((fabs(a) > 0) && (fabs(b) > 0)) {
             rval = fmin(fabs(a), fabs(b));
@@ -50,12 +44,17 @@ namespace utils {
         *j = idx % dim2;
     }
 
-    /*
-    !NOT WORKING!
+    // !NOT WORKING!
     double* quantiles(
         double* values, int num_vals, double* percs, int num_percs,
-        double* weights = nullptr, bool values_sorted = false
+        double* weights, bool values_sorted
     ) {
+        //NOTE: the choice of this constant is arbitrary, and varies between different percentile implementqations
+        //      `numpy` takes cval=1.0, while NIST recommends `cval=0.0`.
+        //      `cval=1.0` produces much more intuitive interplation results.
+        constexpr double cval = 1.0;
+
+        // ---- Sort if needed
 
         int* indices;
         if (values_sorted) {
@@ -67,60 +66,65 @@ namespace utils {
             indices = argsort(values, num_vals);
         }
 
-        // printf("quantiles(): created sorted indices.\n");
+        // --- Calculate cumulative weights
 
-        // Calculate cumulative weights
         double* cum_weights = new double[num_vals];
+        double ww, tot_weight = 0.0;
+        // cumulative weights explicitly
         cum_weights[0] = (weights != nullptr) ? weights[0] : 1.0;
-        for (int i = 1; i < num_vals; i++) {
-            // printf("indices[%d]=%d, cum_weights[%d-1]=%.8e\n", i, indices[i], i, cum_weights[i-1]);
-            cum_weights[i] = cum_weights[indices[i - 1]] + ((weights != nullptr) ? weights[indices[i]] : 1.0);
-            #ifdef DEBUG
-            if(values[indices[i]] < values[indices[i - 1]]) {
-                std::string err_msg = std::format(
-                    "Error `quantiles()` - values are not sorted!: values[{:d}]={:.8e} < values[{:d}]={:.8e}\n",
-                    indices[i], values[indices[i]], indices[i-1], values[indices[i-1]]
-                );
-                throw std::runtime_error(err_msg);
-            }
-            #endif
+        for (int i = 0; i < num_vals; i++) {
+            ww = (weights != nullptr) ? weights[i] : 1.0;
+            cum_weights[i] = ww;
+            if (i > 0) cum_weights[i] += cum_weights[i-1];
+            tot_weight += ww;
+        }
+        // convert to effective weights to facilitate interpolation
+        for (int i = 0; i < num_vals; i++) {
+            ww = (weights != nullptr) ? weights[i] : 1.0;
+            cum_weights[i] = (cum_weights[i] - cval*ww) / (tot_weight + (1.0 - 2.0*cval)*ww);
         }
 
-        // printf("quantiles(): created cumulative weights.\n");
+        // ---- Calculate quantiles
 
-        double total_weight = cum_weights[num_vals - 1];
         double* quantiles = new double[num_percs];
-        double target;
-        int idx;
+        double xl, xr, yl, yr;
+        int idx, lo, hi;
         for (int i = 0; i < num_percs; i++) {
-            target = percs[i] * total_weight;
+            // Handle edges manually
+            if (percs[i] <= cum_weights[0]) {
+                quantiles[i] = values[indices[0]];
+                continue;
+            } else if (percs[i] >= cum_weights[num_vals-1]) {
+                quantiles[i] = values[indices[num_vals-1]];
+                continue;
+            }
+
+            // Find bounding values around target quantile
             idx = 0;
-            while (idx < num_vals && cum_weights[idx] < target) {
+            while (idx < num_vals && cum_weights[idx] < percs[i]) {
                 idx++;
             }
-            if (idx == 0) {
-                quantiles[i] = values[indices[0]];
-            } else if (idx == num_vals) {
-                quantiles[i] = values[indices[num_vals - 1]];
-            } else {
-                quantiles[i] = (
-                    values[indices[idx - 1]] + (
-                        (target - cum_weights[idx - 1]) *
-                        (values[idx] - values[idx - 1]) /
-                        (cum_weights[idx] - cum_weights[idx - 1])
-                    )
-                );
-            }
-        }
 
-        // printf("quantiles(): calculated quantiles.\n");
+            if (idx == 0) {
+                lo = idx;
+                hi = idx+1;
+            } else {
+                lo = idx-1;
+                hi = idx;
+            }
+            xl = cum_weights[lo];
+            xr = cum_weights[hi];
+            yl = values[indices[lo]];
+            yr = values[indices[hi]];
+
+            // Interpolate (linear) to target quantile
+            quantiles[i] = yl + (percs[i] - xl) * (yr - yl) / (xr - xl);
+        }
 
         delete[] indices;
         delete[] cum_weights;
         return quantiles;
     };
-    */
-
 
     // =========================================================================
     // ====     HDF5 functions    ====
@@ -369,5 +373,3 @@ def trapz_loglog( yy, xx, axis=-1, dlogx=None, lntol=1e-2):
 
 */
 
-
-#endif  // UTILS_H

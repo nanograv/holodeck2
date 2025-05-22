@@ -13,9 +13,6 @@
 
 #include "hdf5.h"
 
-using namespace std;
-
-
 #include "quill/Backend.h"
 #include "quill/Frontend.h"
 #include "quill/Logger.h"
@@ -23,6 +20,10 @@ using namespace std;
 
 #include "quill/sinks/FileSink.h"
 #include "quill/sinks/ConsoleSink.h"
+
+using namespace std;
+
+
 
 #define PATH_LOG_OUTPUT "logs/main.txt"
 
@@ -96,6 +97,10 @@ namespace utils {
             [&](size_t i, size_t j) { return array[i] < array[j]; }
         );
 
+        for (int i = 0; i < size; ++i) {
+            printf("%d: array[%d]=%.2e\n", i, indices[i], array[indices[i]]);
+        }
+
         return indices;
     }
 
@@ -110,13 +115,11 @@ namespace utils {
 
     bool is_almost_equal(double a, double b, double atol = 1E-8, double rtol = 1E-6);
 
-    /*
-    !NOT WORKING!
+    // !NOT WORKING!
     double* quantiles(
         double* values, int num_vals, double* percs, int num_percs,
         double* weights = nullptr, bool values_sorted = false
     );
-    */
 
 
     // =========================================================================

@@ -118,31 +118,55 @@ void test_is_almost_equal() {
 }
 
 
-// void test_quantiles() {
-//     printf(" - test_utils::test_quantiles()\n");
+void test_quantiles() {
+    printf(" - test_utils::test_quantiles()\n");
 
-//     // Test the quantiles function
-//     // double vals1[]    = {-1.2005e-01, -1.7419e-01, +1.0767e-02, +2.2249e-01, -9.5085e-02};
-//     double vals1[]    = {-1.7419e-01, -1.2005e-01, -9.5085e-02, +1.0767e-02, +2.2249e-01};
-//     double percs1[]   = {+4.8312e-01, +1.3999e-01, +1.1176e-01, +7.4080e-01, +2.9461e-01};
-//     double quants1[]  = {-9.6771e-02, -1.4387e-01, -1.4999e-01, +6.8729e-03, -1.1560e-01};
-//     double* test1 = utils::quantiles(vals1, 5, percs1, 5, nullptr, true);
-//     for (int i = 0; i < 5; ++i) {
-//         printf("test1[%d]=%.8e vs. quants1[%d]=%.8e\n", i, test1[i], i, quants1[i]);
-//         check_throw(utils::is_almost_equal(test1[i], quants1[i], 0.0, 1E-4), "quantiles() failed test1!");
-//     }
+    double vals0[]   = {0.00, 1.00};
+    double percs0[]  = {0.00, 0.25, 0.50, 0.75, 1.00};
+    double quants0[] = {0.00, 0.25, 0.50, 0.75, 1.00};
+    double* test0 = utils::quantiles(vals0, 2, percs0, 5, nullptr, true);
+    for (int i = 0; i < 5; ++i) {
+        // printf("test1[%d]=%.8e vs. quants1[%d]=%.8e\n", i, test1[i], i, quants1[i]);
+        check_throw(
+            utils::is_almost_equal(test0[i], quants0[i], 0.0, 1E-4),
+            "`quantiles()` faield test 0!!  perc[{}]={:.6e} ==> {:.6e}, should be {:.6e}!",
+            i, percs0[i], test0[i], quants0[i]
+        );
+    }
+    printf("✅ `quantiles()` test 0 passed.\n");
 
-//     double vals2[]    = {+9.9984e-01, +5.0318e-01, -3.7712e-01, +1.9508e+00, -1.4037e+00};
-//     double percs2[]   = {+2.2891e-01, +6.0032e-01, +5.9351e-02, +8.3848e-01, +2.0155e-01};
-//     double quants2[]  = {-4.6374e-01, +7.0248e-01, -1.1600e+00, +1.3364e+00, -5.7606e-01};
+    int size1        = 11;
+    double vals1[]   = {0.00, 1.00, 2.00, 3.00, 4.00, 5.00, 6.00, 7.00, 8.00, 9.00, 10.0};
+    double percs1[]  = {0.00, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90, 1.00};
+    double quants1[] = {0.00, 1.00, 2.00, 3.00, 4.00, 5.00, 6.00, 7.00, 8.00, 9.00, 10.0};
+    double* test1 = utils::quantiles(vals1, size1, percs1, size1, nullptr, true);
+    for (int i = 0; i < size1; ++i) {
+        // printf("test1[%d]=%.8e vs. quants1[%d]=%.8e\n", i, test1[i], i, quants1[i]);
+        check_throw(
+            utils::is_almost_equal(test1[i], quants1[i], 0.0, 1E-4),
+            "quantiles() failed test1!!  perc[{}]={:.6e} ==> {:.6e}, should be {:.6e}!",
+            i, percs1[i], test1[i], quants1[i]
+        );
+    }
+    printf("✅ `quantiles()` test 1 passed.\n");
 
-//     double vals3[]    = {+9.8771e-01, -1.9321e-01, +9.4803e-01, -1.1853e+00, -6.5297e-02};
-//     double percs3[]   = {+7.9573e-01, +9.3014e-01, +6.3894e-01, +3.6387e-01, +9.0518e-01};
-//     double quants3[]  = {+9.5529e-01, +9.7662e-01, +4.9788e-01, -1.3495e-01, +9.7266e-01};
+    // Test the quantiles function
+    double vals2[]    = {-1.7419e-01, -1.2005e-01, -9.5085e-02, +1.0767e-02, +2.2249e-01};
+    double percs2[]   = {+4.8312e-01, +1.3999e-01, +1.1176e-01, +7.4080e-01, +2.9461e-01};
+    double quants2[]  = {-9.6771e-02, -1.4387e-01, -1.4999e-01, +6.8729e-03, -1.1560e-01};
+    double* test2 = utils::quantiles(vals2, 5, percs2, 5, nullptr, true);
+    for (int i = 0; i < 5; ++i) {
+        check_throw(
+            utils::is_almost_equal(test2[i], quants2[i], 0.0, 1E-3),
+            "quantiles() failed test2!!  perc[{}]={:.6e} ==> {:.6e}, should be {:.6e}!",
+            i, percs2[i], test2[i], quants2[i]
+        );
+    }
+    printf("✅ `quantiles()` test 2 passed.\n");
 
-//     std::cout << "✅ quantiles test passed.\n";
+    std::cout << "quantiles passed all tests.\n";
 
-// }
+}
 
 
 void test_utils() {
@@ -154,9 +178,9 @@ void test_utils() {
 
     test_is_almost_equal();
 
-    // test_quantiles();
+    test_quantiles();
 
-    std::cout << "✅ All tests passed.\n";
+    std::cout << "All utils tests passed.\n";
 
 }
 
