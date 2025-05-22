@@ -14,6 +14,7 @@
 #define FNAME_OUTPUT_HDF5 "output.hdf5"
 
 constexpr double FLOOR_NUMB_EXPECT = 1.0E-10;
+constexpr double FLOOR_NUM_DENS = 1.0E-20;
 
 
 void hdf5_write_meta(hid_t h5_file, SAM &sam, PTA &pta, GravWaves &gw) {
@@ -53,6 +54,7 @@ double SAM::dngal_to_dnmbh(double mbh1, double mbh2, double ms1, double ms2, dou
     double qterm = (1.0 + ms2/ms1) / (1.0 + (mbh2/mbh1));
     return ((mbh1 + mbh2) / (ms1 + ms2)) * (dmstar_dmbh_pri * qterm / dqbh_dqgal);
 }
+
 
 
 double SAM::gmr_illustris(double mstar_tot, double mstar_rat, double rz) {
@@ -96,6 +98,15 @@ double SAM::gsmf_single_schechter(double mstar, double redz, double phi_terms[3]
 }
 
 
+/**
+ * Evaluate a Double-Schechter Galaxy Stellar-Mass Function (GSMF) to find galaxy number-density.
+ *
+ * @param mstar  Galaxy stellar-mass [Msol].
+ * @param redz   Redshift [].
+ *
+ * @return       Galaxy number density [Mpc^-3].
+ *
+ */
 double SAM::gsmf_double_schechter(double mstar, double redz) {
     double phi = gsmf_single_schechter(mstar, redz, this->gsmf_log10_phi1, this->gsmf_log10_mchar, this->gsmf_alpha1);
     phi +=       gsmf_single_schechter(mstar, redz, this->gsmf_log10_phi2, this->gsmf_log10_mchar, this->gsmf_alpha2);
@@ -120,21 +131,35 @@ double SAM::mmbulge_mstar_from_mbh(double mbh) {
 }
 
 
+/**
+ * Calculate the number-density of MBH binary mergers with the given masses and redshift.
+ *
+ * @param mbh1           Mass of the primary   MBH [Msol].
+ * @param mbh2           Mass of the secondary MBH [Msol].
+ * @param redz           Redshift of the merger [].
+ * @param return_galgal  If `true`, return the number-density of galaxy mergers (not MBH mergers).
+ *
+ * @return               Number-density of binary mergers [Mpc^-3].
+ *
+ */
 double SAM::number_density(double mbh1, double mbh2, double rz, bool return_galgal) {
 
     // ---- Get galaxy stellar masses
 
     // NOTE: assume primary MBH ==> primary galaxy mass ==> GSMF
+    // primary-galaxy stellar-mass [Msol]
     double ms1 = mmbulge_mstar_from_mbh(mbh1);
 
     // ---- Get galaxy stellar mass function
 
-    //! UNITS?
+    // number-density of galaxies, [Mpc^-3]
     double phi = gsmf_double_schechter(ms1, rz);
 
     // ---- Get galaxy-galaxy merger rate
 
-    double ms2 = mmbulge_mstar_from_mbh(mbh1);
+    // secondary-galaxy stellar-mass [Msol]
+    double ms2 = mmbulge_mstar_from_mbh(mbh2);
+    // galaxy merger rate (GMR)
     double gmr = gmr_illustris(ms1 + ms2, ms2/ms1, rz);
 
     // ---- Get galaxy-galaxy merger, number density
@@ -143,6 +168,11 @@ double SAM::number_density(double mbh1, double mbh2, double rz, bool return_galg
     cosmo->dtdz_from_redz(rz, &dtdz);
 
     double ndens = phi * gmr * dtdz;
+
+    printf(
+        "mbh1=%.2e, ms1=%.2e | mbh2=%.2e, ms2=%.2e | phi=%.2e, gmr=%.2e, dtdz=%.2e\n",
+        mbh1, ms1, mbh2, ms2, phi, gmr, dtdz
+    );
 
     // Return only galaxy-galaxy merger rate
     if (return_galgal) { return ndens; }
@@ -180,8 +210,8 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
     // Grid edges & centers
     double* fobs_edges = pta.fobs_edges;
     double* fobs_cents = pta.fobs_cents;
-    double* mass_edges = this->mass_edges;
-    double* mass_cents = this->mass_cents;
+    double* mbh_mass_edges = this->mass_edges;
+    double* mbh_mass_cents = this->mass_cents;
     double* redz_edges = this->redz_edges;
     double* redz_cents = this->redz_cents;
 
@@ -211,7 +241,7 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
     double dz[num_redz_cents];           // redshift bin-width
     double dlnf[num_freq_cents];
 
-    double** mchirp_cents;    // [M1-1][M2-1] : chirp mass (rest-frame) at grid centers [grams]
+    double** mchirp_cents_grams;    // [M1-1][M2-1] : chirp mass (rest-frame) at grid centers [grams]
     double*** num_dens;       // [M1][M2][Z] : differential number-density of binaries at grid edges [Mpc^-3]
     double*** diff_numb;      // [M1][M2][Z] : differential-number of binaries at grid edges []
 
@@ -222,24 +252,24 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
 
     // ---- Perform initializations & pre-calculations
 
-    mchirp_cents = (double**)malloc((num_mass_cents) * sizeof(double*));
+    mchirp_cents_grams = (double**)malloc((num_mass_cents) * sizeof(double*));
     num_dens = (double***)malloc(num_mass_edges * sizeof(double**));
     diff_numb = (double***)malloc(num_mass_edges * sizeof(double**));
     tauf = (double***)malloc((num_mass_edges) * sizeof(double**));
     numb_expect = (double***)malloc((num_mass_cents) * sizeof(double**));     // bin-centers!
 
     // Flattened data for writing to HDF5
-    double* tauf_flat = (double*)malloc(num_mass_edges * num_mass_edges * num_redz_edges * sizeof(double));
-    double* numb_expect_flat = (double*)malloc(num_mass_cents * num_mass_cents * num_redz_cents * sizeof(double));
+    // double* tauf_flat = (double*)malloc(num_mass_edges * num_mass_edges * num_redz_edges * sizeof(double));
+    // double* numb_expect_flat = (double*)malloc(num_mass_cents * num_mass_cents * num_redz_cents * sizeof(double));
 
     LOG_DEBUG(get_logger(), "SAM::grav_waves(): allocation completed.  Initializing...\n");
 
     for(m1 = 0; m1 < num_mass_edges; m1++) {
-        mbh_mass_edges_grams[m1] = mass_edges[m1] * MSOL;
+        mbh_mass_edges_grams[m1] = mbh_mass_edges[m1] * MSOL;
         if (m1 > 0) {
             m1c = m1 - 1;
-            dlog10_mbh[m1c] = log10(mass_edges[m1]) - log10(mass_edges[m1-1]);
-            mbh_mass_cents_grams[m1c] = mass_cents[m1] * MSOL;
+            dlog10_mbh[m1c] = log10(mbh_mass_edges[m1]) - log10(mbh_mass_edges[m1-1]);
+            mbh_mass_cents_grams[m1c] = mbh_mass_cents[m1] * MSOL;
         }
     }
 
@@ -252,7 +282,7 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
 
         if (m1 > 0) {
             m1c = m1 - 1;
-            mchirp_cents[m1c] = (double*)malloc((num_mass_cents) * sizeof(double));
+            mchirp_cents_grams[m1c] = (double*)malloc((num_mass_cents) * sizeof(double));
             numb_expect[m1c] = (double**)malloc((num_mass_cents) * sizeof(double*));
         }
 
@@ -261,12 +291,12 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
             diff_numb[m1][m2] = (double*)malloc(num_redz_edges * sizeof(double));
             tauf[m1][m2] = (double*)malloc(num_redz_edges * sizeof(double));
 
-            // `mchirp_cents` [gram], Chirp-Mass (rest-frame)
+            // `mchirp_cents_grams` [gram], Chirp-Mass (rest-frame)
             if (m1 > 0 && m2 > 0) {
                 m2c = m2 - 1;
                 numb_expect[m1c][m2c] = (double*)malloc((num_redz_cents) * sizeof(double));  // bin-centers!
                 physics::chirp_mass_from_m1m2(
-                    mbh_mass_cents_grams[m1c], mbh_mass_cents_grams[m2c], &mchirp_cents[m1c][m2c]
+                    mbh_mass_cents_grams[m1c], mbh_mass_cents_grams[m2c], &mchirp_cents_grams[m1c][m2c]
                 );
             }
         } // m2
@@ -315,6 +345,7 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
     LOG_DEBUG(get_logger(), "SAM::grav_waves(): initialization completed.  Calculating GWB...");
 
     int num_floor_numb_expect = 0;
+    int num_floor_num_dens = 0;
 
     for(f = 0; f < num_freq_cents; f++) {
 
@@ -325,7 +356,7 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
                     // calculation differential number-densitiy of binary merger events
                     if (f == 0) {
                         num_dens[m1][m2][z] = number_density(
-                            mbh_mass_edges_grams[m1], mbh_mass_edges_grams[m2], redz_edges[z]
+                            mbh_mass_edges[m1], mbh_mass_edges[m2], redz_edges[z]
                         );
                     }
 
@@ -339,10 +370,26 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
                         mbh_mass_edges_grams[m1], mbh_mass_edges_grams[m2], frst_orb_zedges[z][f], &tauf[m1][m2][z]
                     );
 
+                    //! FIX: ENABLE FLOOR, MAKE SURE TO ZERO UNSET VALUES CORREECTLY
+                    // if ((FLOOR_NUM_DENS > 0.0) && (num_dens[m1][m2][z] < FLOOR_NUM_DENS)) {
+                    //     num_dens[m1][m2][z] = 0.0;
+                    //     diff_numb[m1][m2][z] = 0.0;
+                    //     num_floor_num_dens++;
+                    //     continue;
+                    // }
+
                     // expectation value for differential number of binaries
                     // this is:  $d^3 n / [dlog10(M1) dlog10(M2) dz dlog_e(f)]$
                     //! FIX: make sure this is d4n/[dlog10(m1) dlog10(m2) dz dlnf]  --- i.e. the log10 of both masses.
                     diff_numb[m1][m2][z] = num_dens[m1][m2][z] * cosmo_fact[z] * tauf[m1][m2][z];
+
+                    if (diff_numb[m1][m2][z] < 0.0) {
+                        std::string err_msg = std::format(
+                            "diff_numb[{}][{}][{}] = {:.2e} < 0.0 !!!  ",
+                            m1, m2, z, diff_numb[m1][m2][z]
+                        );
+                        throw std::runtime_error(err_msg);
+                    }
 
                     // ---- Integrate over differential number
 
@@ -366,6 +413,15 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
                     for (ii = 0; ii < 2; ii++) {
                         for (jj = 0; jj < 2; jj++) {
                             for (kk = 0; kk < 2; kk++) {
+
+                                if (diff_numb[m1-ii][m2-jj][z-kk] < 0.0) {
+                                    std::string err_msg = std::format(
+                                        "STENCIL:: diff_numb[{}-{}][{}-{}][{}-{}] = {:.2e} < 0.0 !!!  ",
+                                        m1, ii, m2, jj, z, kk, diff_numb[m1-ii][m2-jj][z-kk]
+                                    );
+                                    throw std::runtime_error(err_msg);
+                                }
+
                                 numb_expect[m1c][m2c][zc] += (
                                     diff_numb[m1-ii][m2-jj][z-kk] *
                                     dlnf[f] *
@@ -378,10 +434,19 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
 
                     // we've added together 2-sides on 3 dimensions, so divide by 2^3 = 8
                     numb_expect[m1c][m2c][zc] /= 8.0;
-                    if ((FLOOR_NUMB_EXPECT > 0.0) && (numb_expect[m1c][m2c][zc] < FLOOR_NUMB_EXPECT)) {
-                        numb_expect[m1c][m2c][zc] = 0.0;
-                        num_floor_numb_expect++;
-                        continue;
+                    //! FIX: ENABLE FLOOR, MAKE SURE TO ZERO UNSET VALUES CORREECTLY
+                    // if ((FLOOR_NUMB_EXPECT > 0.0) && (numb_expect[m1c][m2c][zc] < FLOOR_NUMB_EXPECT)) {
+                    //     numb_expect[m1c][m2c][zc] = 0.0;
+                    //     num_floor_numb_expect++;
+                    //     continue;
+                    // }
+
+                    if (numb_expect[m1c][m2c][zc] < 0.0) {
+                        std::string err_msg = std::format(
+                            "numb_expect[{}][{}][{}] = {:.2e} < 0.0 !!!  ",
+                            m1c, m2c, zc, numb_expect[m1c][m2c][zc]
+                        );
+                        throw std::runtime_error(err_msg);
                     }
 
                     // construct Poisson distribution centered on the expectation value
@@ -391,7 +456,7 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
 
                     // `hs2` [], Spectral strain-squared of the binary
                     physics::gw_strain_source_sq(
-                        mchirp_cents[m1c][m2c], dcom_cents_cm[zc], frst_orb_zcents[zc][f], &hs2
+                        mchirp_cents_grams[m1c][m2c], dcom_cents_cm[zc], frst_orb_zcents[zc][f], &hs2
                     );
 
                     for(r = 0; r < num_reals; r++) {
@@ -403,10 +468,10 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
                     } // r
 
                     // Prepare flatted output for HDF5
-                    utils::index_3d_to_1d(m1c, m2c, zc, num_mass_cents, num_mass_cents, num_redz_cents, &idx);
-                    numb_expect_flat[idx] = numb_expect[m1c][m2c][zc];
-                    utils::index_3d_to_1d(m1, m2, z, num_mass_edges, num_mass_edges, num_redz_edges, &idx);
-                    tauf_flat[idx] = tauf[m1][m2][z];
+                    // utils::index_3d_to_1d(m1c, m2c, zc, num_mass_cents, num_mass_cents, num_redz_cents, &idx);
+                    // numb_expect_flat[idx] = numb_expect[m1c][m2c][zc];
+                    // utils::index_3d_to_1d(m1, m2, z, num_mass_edges, num_mass_edges, num_redz_edges, &idx);
+                    // tauf_flat[idx] = tauf[m1][m2][z];
 
                 } // z
             } // m2
@@ -427,13 +492,21 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
 
     // ---- Check/report diagnostics
 
-    if (FLOOR_NUMB_EXPECT > 0.0) {
-        int tot_num = num_freq_cents * num_mass_cents * num_mass_cents * num_redz_cents;
-        LOG_INFO(
-            get_logger(), "Number below floor ({:.2e}): {}/{}={:.2e}",
-            FLOOR_NUMB_EXPECT, num_floor_numb_expect, tot_num, (double)num_floor_numb_expect/tot_num
-        );
-    }
+    // if (FLOOR_NUM_DENS > 0.0) {
+    //     int tot_num = num_freq_cents * num_mass_edges * num_mass_edges * num_redz_edges;
+    //     LOG_INFO(
+    //         get_logger(), "`num_dens`    below floor ({:.2e}): {}/{}={:.2e}",
+    //         FLOOR_NUM_DENS, num_floor_num_dens, tot_num, (double)num_floor_num_dens/tot_num
+    //     );
+    // }
+
+    // if (FLOOR_NUMB_EXPECT > 0.0) {
+    //     int tot_num = num_freq_cents * num_mass_cents * num_mass_cents * num_redz_cents;
+    //     LOG_INFO(
+    //         get_logger(), "`numb_expect` below floor ({:.2e}): {}/{}={:.2e}",
+    //         FLOOR_NUMB_EXPECT, num_floor_numb_expect, tot_num, (double)num_floor_numb_expect/tot_num
+    //     );
+    // }
 
     LOG_DEBUG(get_logger(), "Writing data to HDF5...");
 
@@ -467,17 +540,17 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
         free(diff_numb[m1]);
         free(tauf[m1]);
         if (m1 > 0) {
-            free(mchirp_cents[m1-1]);
+            free(mchirp_cents_grams[m1-1]);
             free(numb_expect[m1-1]);
         }
     }
     free(num_dens);
     free(diff_numb);
-    free(mchirp_cents);
+    free(mchirp_cents_grams);
     free(tauf);
 
-    free(numb_expect_flat);
-    free(tauf_flat);
+    // free(numb_expect_flat);
+    // free(tauf_flat);
 
     // Close HDF5 dataset and file
     H5Fclose(h5_file);
