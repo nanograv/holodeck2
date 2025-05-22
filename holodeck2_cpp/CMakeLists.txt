@@ -156,6 +156,7 @@ add_executable(test_holodeck
     tests/tester.cpp
     src/cosmology.cpp
     src/physics.cpp
+    src/sam.cpp
     src/utils.cpp
 )
 

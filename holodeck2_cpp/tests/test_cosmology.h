@@ -8,7 +8,7 @@
 #include <format>
 
 #include "../src/cosmology.h"
-#include "test_tools.h"
+#include "tools.h"
 
 
 void test_interp_values(double redz, double truth, double test, const char* msg) {

@@ -8,7 +8,7 @@
 #include <format>
 
 #include "../src/utils.h"
-#include "test_tools.h"
+#include "tools.h"
 
 
 void test_argsort() {
@@ -25,7 +25,7 @@ void test_argsort() {
         //     "Interpolation test failed on {}!: test={:.8e} vs. truth={:.8e} at redz={:.8e}",
         //     msg, test, truth, redz
         // );
-        check(sorted_indices[i] == truth1[i], "argsort() failed!");
+        check_throw(sorted_indices[i] == truth1[i], "argsort() failed!");
     }
     std::cout << "✅ Already-sorted array passed.\n";
 
@@ -36,7 +36,7 @@ void test_argsort() {
 
     sorted_indices = utils::argsort(b, 5);
     for (int i = 0; i < 5; ++i) {
-        check(sorted_indices[i] == truth2[i], "argsort() failed!");
+        check_throw(sorted_indices[i] == truth2[i], "argsort() failed!");
     }
     std::cout << "✅ Reverse-sorted array passed.\n";
 
@@ -46,7 +46,7 @@ void test_argsort() {
     int truth3[] = { 1, 3, 0, 2, 4 };
     sorted_indices = utils::argsort(c, 5);
     for (int i = 0; i < 5; ++i) {
-        check(sorted_indices[i] == truth3[i], "argsort() failed!");
+        check_throw(sorted_indices[i] == truth3[i], "argsort() failed!");
     }
     std::cout << "✅ Random array passed.\n";
 
@@ -63,10 +63,10 @@ void test_index_2d_to_1d() {
     for (int i = 0; i < dim1; ++i) {
         for (int j = 0; j < dim2; ++j) {
             utils::index_2d_to_1d(i, j, dim1, dim2, &index);
-            check(index == (i * dim2 + j), "index_2d_to_1d() failed!");
+            check_throw(index == (i * dim2 + j), "index_2d_to_1d() failed!");
             utils::index_1d_to_2d(index, dim1, dim2, &a, &b);
-            check(i == a, "index_1d_to_2d() failed!  i != a");
-            check(j == b, "index_1d_to_2d() failed!  j != b");
+            check_throw(i == a, "index_1d_to_2d() failed!  i != a");
+            check_throw(j == b, "index_1d_to_2d() failed!  j != b");
         }
     }
 
@@ -83,11 +83,11 @@ void test_index_3d_to_1d() {
         for (int j = 0; j < dim2; ++j) {
             for (int k = 0; k < dim3; ++k) {
                 utils::index_3d_to_1d(i, j, k, dim1, dim2, dim3, &index);
-                check(index == (i * (dim2*dim3) + j*dim3 + j), "index_3d_to_1d() failed!");
+                check_throw(index == (i * (dim2*dim3) + j*dim3 + j), "index_3d_to_1d() failed!");
                 utils::index_1d_to_3d(index, dim1, dim2, dim3, &a, &b, &c);
-                check(i == a, "index_1d_to_3d() failed!  i != a");
-                check(j == b, "index_1d_to_3d() failed!  j != b");
-                check(k == c, "index_1d_to_3d() failed!  k != c");
+                check_throw(i == a, "index_1d_to_3d() failed!  i != a");
+                check_throw(j == b, "index_1d_to_3d() failed!  j != b");
+                check_throw(k == c, "index_1d_to_3d() failed!  k != c");
             }
         }
     }
@@ -105,14 +105,14 @@ void test_is_almost_equal() {
     double b = a + diff;
 
     printf("Test atol\n");
-    check(utils::is_almost_equal(a, b, 1.01*diff, 0.0), "Test 1 failed: a and b should be almost equal");
-    check(!utils::is_almost_equal(a, b, 0.99*diff, 0.0), "Test 2 failed: a and b should not be almost equal");
+    check_throw(utils::is_almost_equal(a, b, 1.01*diff, 0.0), "Test 1 failed: a and b should be almost equal");
+    check_throw(!utils::is_almost_equal(a, b, 0.99*diff, 0.0), "Test 2 failed: a and b should not be almost equal");
     std::cout << "✅ assert_almost_equal passed 'atol' test.\n";
 
     printf("Test rtol\n");
     b = a + diff * a;
-    check(utils::is_almost_equal(a, b, 0.0, 1.01*diff), "Test 3 failed: a and b should be almost equal");
-    check(!utils::is_almost_equal(a, b, 0.0, 0.99*diff), "Test 4 failed: a and b should not be almost equal");
+    check_throw(utils::is_almost_equal(a, b, 0.0, 1.01*diff), "Test 3 failed: a and b should be almost equal");
+    check_throw(!utils::is_almost_equal(a, b, 0.0, 0.99*diff), "Test 4 failed: a and b should not be almost equal");
 
     std::cout << "✅ assert_almost_equal passed 'rtol' test.\n";
 }
@@ -129,7 +129,7 @@ void test_is_almost_equal() {
 //     double* test1 = utils::quantiles(vals1, 5, percs1, 5, nullptr, true);
 //     for (int i = 0; i < 5; ++i) {
 //         printf("test1[%d]=%.8e vs. quants1[%d]=%.8e\n", i, test1[i], i, quants1[i]);
-//         check(utils::is_almost_equal(test1[i], quants1[i], 0.0, 1E-4), "quantiles() failed test1!");
+//         check_throw(utils::is_almost_equal(test1[i], quants1[i], 0.0, 1E-4), "quantiles() failed test1!");
 //     }
 
 //     double vals2[]    = {+9.9984e-01, +5.0318e-01, -3.7712e-01, +1.9508e+00, -1.4037e+00};
