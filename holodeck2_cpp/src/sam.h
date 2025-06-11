@@ -8,8 +8,10 @@
 
 #include <cstdlib> // For malloc and free
 #include <cmath>
+#include <iostream>
 #include <random>
 
+#include "config.h"
 #include "constants.h"
 #include "physics.h"
 #include "cosmology.h"
@@ -22,20 +24,25 @@ inline std::default_random_engine rng(42);          // RNG with fixed seed
 class PTA {
 
 public:
-    double obs_dur;
+    double obs_dur_yr;     // [yr]
     int num_freq_cents;
-    double* fobs_cents;
-    double* fobs_edges;
+    double* fobs_cents;    // [Hz]
+    double* fobs_edges;    // [Hz]
 
-    PTA(double dur=20.0, double nfreqs=30) : obs_dur(dur), num_freq_cents(nfreqs) {
+    PTA(double dur=20.0, double nfreqs=30) : obs_dur_yr(dur), num_freq_cents(nfreqs) {
         fobs_cents = (double*)malloc(num_freq_cents * sizeof(double));
         fobs_edges = (double*)malloc((num_freq_cents+1) * sizeof(double));
-        double df = 1.0 / obs_dur;
+        double df = 1.0 / (obs_dur_yr * YR);
         fobs_edges[0] = df * 0.5;
         for (int ii = 0; ii < num_freq_cents; ii++) {
             fobs_cents[ii] = df * (ii + 1);
             fobs_edges[ii+1] = df * (ii + 1.5);
         }
+        LOG_DEBUG(get_logger(),
+            "Initialized PTA with {} frequencies between [{:.2e}, {:.2e}] Hz = [{:.2e}, {:.2e}] yr^-1\n",
+            num_freq_cents, fobs_cents[0], fobs_edges[num_freq_cents-1],
+            fobs_cents[0]*YR, fobs_edges[num_freq_cents-1]*YR
+        );
     };
 
     ~PTA() {
@@ -67,6 +74,10 @@ public:
                 cws[ii][jj] = (double* )calloc(num_louds, sizeof(double));
             }
         }
+        LOG_DEBUG(get_logger(),
+            "Initialized GravWaves with {} freqs, {} reals, {} louds\n",
+            num_freq_cents, num_reals, num_louds
+        );
     }
 
     ~GravWaves() {
@@ -101,8 +112,10 @@ public:
     // Grid
     // double mass_pars[3] = {1E6, 1E12, 101};
     // double redz_pars[3] = {1E-2, 1E1, 91};
-    double mass_pars[3] = {1E6, 1E12, 21};
-    double redz_pars[3] = {1E-2, 1E1, 11};
+    double mass_pars[3] = {1E6, 1E12, 31};
+    double redz_pars[3] = {1E-2, 1E1, 31};
+    // double mass_pars[3] = {1E6, 1E12, 21};
+    // double redz_pars[3] = {1E-2, 1E1, 11};
 
     // GSMF - Double Schechter
     double gsmf_log10_phi1[3] = {-2.383, -0.264, -0.107};
@@ -168,6 +181,10 @@ public:
             // printf("redz_edges[%d]=%.2e, redz_cents[%d]=%.2e (next=%.2e)\n", ii, redz_edges[ii], ii, redz_cents[ii], next);
             prev = next;
         }
+
+        LOG_DEBUG(get_logger(),
+            "Initialized SAM with {} mass bins, {} redshift bins\n", num_mass_edges, num_redz_edges
+        );
 
     }
 

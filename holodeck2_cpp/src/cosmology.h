@@ -2,8 +2,7 @@
  *
  */
 
-#ifndef COSMOLOGY_H
-#define COSMOLOGY_H
+#pragma once
 
 #include <format>
 #include <fstream>
@@ -11,8 +10,9 @@
 #include <sstream>   // for std::istringstream
 #include <string>
 
-#include "utils.h"
+#include "config.h"
 #include "constants.h"
+#include "utils.h"
 
 
 class Cosmology {
@@ -82,5 +82,3 @@ private:
 
 };
 
-
-#endif  // COSMOLOGY_H
