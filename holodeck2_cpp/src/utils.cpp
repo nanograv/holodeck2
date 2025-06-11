@@ -44,7 +44,7 @@ namespace utils {
         *j = idx % dim2;
     }
 
-    // !NOT WORKING!
+
     double* quantiles(
         double* values, int num_vals, double* percs, int num_percs,
         double* weights, bool values_sorted
@@ -125,6 +125,61 @@ namespace utils {
         delete[] cum_weights;
         return quantiles;
     };
+
+
+    double* quantiles(
+        double* values, int num_vals, const std::vector<double>& percs,
+        double* weights, bool values_sorted
+    ) {
+        return quantiles(
+            values, num_vals, const_cast<double*>(percs.data()), percs.size(),
+            weights, values_sorted
+        );
+    }
+
+    std::string quantiles_string(
+        double* values, int num_vals, double* percs, int num_percs,
+        double* weights, bool values_sorted
+    ) {
+        // Compute the quantiles using your existing function
+        double* qs = quantiles(values, num_vals, percs, num_percs, weights, values_sorted);
+
+        std::ostringstream ss;
+
+        // Format quantile values
+        for (int i = 0; i < num_percs; ++i) {
+            if (i > 0) ss << ", ";
+            ss << std::format("{:.2E}", qs[i]);
+        }
+
+        ss << " [";
+
+        // Format percentile labels (e.g., 25%, 50%)
+        for (int i = 0; i < num_percs; ++i) {
+            if (i > 0) ss << ", ";
+            ss << std::format("{:.0f}%", percs[i] * 100.0);
+        }
+
+        ss << "]";
+
+        // Optionally: free or clean up qs here if needed (depending on how quantiles is implemented)
+        delete[] qs;
+
+        return ss.str();
+    }
+
+
+    std::string quantiles_string(
+        double* values, int num_vals, const std::vector<double>& percs,
+        double* weights, bool values_sorted
+    ) {
+        return quantiles_string(
+            values, num_vals, const_cast<double*>(percs.data()), percs.size(),
+            weights, values_sorted
+        );
+    }
+
+
 
     // =========================================================================
     // ====     HDF5 functions    ====

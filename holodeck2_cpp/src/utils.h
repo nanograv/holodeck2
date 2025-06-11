@@ -4,12 +4,14 @@
 
 #pragma once
 
-#ifndef UTILS_H
-#define UTILS_H
 
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <format>
+#include <sstream>
+#include <string>
+// #include <iomanip>  // optional, for std::setprecision fallback
 
 #include "hdf5.h"
 
@@ -21,11 +23,10 @@
 #include "quill/sinks/FileSink.h"
 #include "quill/sinks/ConsoleSink.h"
 
+#include "config.h"
+
 using namespace std;
 
-
-
-#define PATH_LOG_OUTPUT "logs/main.txt"
 
 
 inline quill::Logger* get_logger()
@@ -80,10 +81,6 @@ inline quill::Logger* get_logger()
 }
 
 
-
-
-
-
 namespace utils {
 
     template <typename T>
@@ -96,10 +93,6 @@ namespace utils {
             indices, indices + size,
             [&](size_t i, size_t j) { return array[i] < array[j]; }
         );
-
-        for (int i = 0; i < size; ++i) {
-            printf("%d: array[%d]=%.2e\n", i, indices[i], array[indices[i]]);
-        }
 
         return indices;
     }
@@ -115,12 +108,27 @@ namespace utils {
 
     bool is_almost_equal(double a, double b, double atol = 1E-8, double rtol = 1E-6);
 
-    // !NOT WORKING!
     double* quantiles(
         double* values, int num_vals, double* percs, int num_percs,
         double* weights = nullptr, bool values_sorted = false
     );
 
+    double* quantiles(
+        double* values, int num_vals, const std::vector<double>& percs,
+        double* weights = nullptr,
+        bool values_sorted = false
+    );
+
+    std::string quantiles_string(
+        double* values, int num_vals, double* percs, int num_percs,
+        double* weights = nullptr, bool values_sorted = false
+    );
+
+    std::string quantiles_string(
+        double* values, int num_vals, const std::vector<double>& percs,
+        double* weights = nullptr,
+        bool values_sorted = false
+    );
 
     // =========================================================================
     // ====     HDF5 functions    ====
@@ -585,4 +593,3 @@ def trapz_loglog( yy, xx, axis=-1, dlogx=None, lntol=1e-2):
 */
 
 
-#endif  // UTILS_H
