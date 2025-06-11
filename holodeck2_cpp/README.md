@@ -10,7 +10,7 @@ NOTE: if the shared library is built against a different version of python, the 
 [ ] Add wrapper python-module that provides access to cpp module.  Use this to ensure module is loaded correctly (i.e. from same environment as library was built under).
 [ ] Use `doctest` for C++ unit testing!
 [ ] Change to better units (i.e. pc, Msol, Myr)
-
+[ ] Implement occupancy fraction to zero the number-density of low-mass MBHs
 
 
 
