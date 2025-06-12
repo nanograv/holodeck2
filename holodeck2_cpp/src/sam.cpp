@@ -2,27 +2,11 @@
  *
  */
 
-#include <boost/math/distributions/poisson.hpp>
-#include <boost/random/mersenne_twister.hpp>
-#include <boost/random/poisson_distribution.hpp>
-#include <boost/random/variate_generator.hpp>
-#include <memory>   // for std::unique_ptr
-
 #include "sam.h"
 
 #include "cosmology.h"
 #include "physics.h"
 #include "utils.h"
-
-using RNGType   = boost::random::mt19937;
-using DistType  = boost::random::poisson_distribution<>;
-using VGType    = boost::random::variate_generator<RNGType&, DistType>;
-
-constexpr double FLOOR_NUMB_EXPECT = 1.0E-10;
-constexpr double FLOOR_NUM_DENS = 1.0E-20;
-
-
-RNGType rng(42);
 
 
 void hdf5_write_meta(hid_t h5_file, SAM &sam, PTA &pta, GravWaves &gw) {
@@ -257,7 +241,6 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
     //! FIX: this doesn't need to be stored always, add preprocessor directive to turn-on and turn-off as desired
     double*** numb_expect;    // [M1-1][M2-1][Z-1] : number of binaries (expectation-value) in each bin (bin centers) []
     double*** tauf;           // [M1][M2][Z] :
-    // double numb_expect;        // number of binaries (expectation-value) in each bin (bin centers) []
 
     boost::random::poisson_distribution<> dist_poisson;
     // boost::random::variate_generator<boost::random::mt19937&, boost::random::poisson_distribution<>> draw_poisson;
@@ -373,8 +356,17 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
 
     LOG_DEBUG(get_logger(), "SAM::grav_waves(): initialization completed.  Calculating GWB...");
 
-    // int num_floor_numb_expect = 0;
-    // int num_floor_num_dens = 0;
+    const double num_expect_floor_per_bin = (
+        SAM_NUM_EXPECT_FLOOR / num_mass_cents / num_mass_cents / num_redz_cents / num_reals
+    );
+    if (num_expect_floor_per_bin < 0.0) {
+        auto message = std::format(
+            "`num_expect_floor_per_bin`={:.2e} must be >= 0.0!  Reset `SAM_NUM_EXPECT_FLOOR`={:.2e}",
+            num_expect_floor_per_bin, SAM_NUM_EXPECT_FLOOR
+        );
+        throw runtime_error(message);
+    }
+    int num_skip_sam_num_expect = 0;
 
     for(f = 0; f < num_freq_cents; f++) {
 
@@ -382,15 +374,15 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
             for(m2 = 0; m2 < num_mass_edges; m2++) {
                 for(z = 0; z < num_redz_edges; z++) {
 
-                    // calculation differential number-densitiy of binary merger events
+                    // Calculate differential number-densitiy of binary merger events.
+                    // This is independent of frequency, so only calculate it once.
+                    // NOTE: even if `num_dens` is low (or zero), we still need to calculate corresponding bin-centered
+                    // values, so we cannot implement a floor/skip based on the value of `num_dens` or `diff_numb`.
                     if (f == 0) {
                         num_dens[m1][m2][z] = number_density(
                             mbh_mass_edges[m1], mbh_mass_edges[m2], redz_edges[z]
                         );
                     }
-
-                    //! FIX: consider implementing `num_dens` cutoff: if too low, skip
-                    //! NOTE: make sure skipped values are set to zero as needed (i.e. if initialized w/ malloc)
 
                     // ---- Calculate (expectation-value) number of binaries in the universe at this bin
 
@@ -398,14 +390,6 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
                     physics::gw_hardening_time_freq(
                         mbh_mass_edges_grams[m1], mbh_mass_edges_grams[m2], frst_orb_zedges[z][f], &tauf[m1][m2][z]
                     );
-
-                    //! FIX: ENABLE FLOOR, MAKE SURE TO ZERO UNSET VALUES CORREECTLY
-                    // if ((FLOOR_NUM_DENS > 0.0) && (num_dens[m1][m2][z] < FLOOR_NUM_DENS)) {
-                    //     num_dens[m1][m2][z] = 0.0;
-                    //     diff_numb[m1][m2][z] = 0.0;
-                    //     num_floor_num_dens++;
-                    //     continue;
-                    // }
 
                     // expectation value for differential number of binaries
                     // this is:  $d^3 n / [dlog10(M1) dlog10(M2) dz dlog_e(f)]$
@@ -420,7 +404,6 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
                     // element in the 3D grid.  Centers are indexed as 1-less than the edges:
                     // i.e. 'm1-1', 'm2-1', 'z-1'
                     // Remember that the frequencies we're interating over are already bin centers!
-
                     if ( m1 == 0 || m2 == 0 || z == 0 ) continue;
 
                     m1c = m1 - 1;
@@ -429,8 +412,9 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
 
                     numb_expect[m1c][m2c][zc] = 0.0;
 
-                    // stencil over corners of the bin in 3D
-                    // We subtract 0,1 to ensure we get the 0th elements that we skipped above
+                    // Integrate over bin-corners to get bin-centered expected number of binaries.
+                    // Stencil over corners of the bin in 3D.  We subtract 0/1 (instead of adding)
+                    // to ensure we get the 0th elements that we skipped above.
                     for (ii = 0; ii < 2; ii++) {
                         for (jj = 0; jj < 2; jj++) {
                             for (kk = 0; kk < 2; kk++) {
@@ -444,21 +428,28 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
                         }
                     }
 
-                    if (numb_expect[m1c][m2c][zc] == 0.0) continue;
+                    // Prepare flatted output for printing statistics
+                    #ifdef DEBUG_FREQ_STATS
+                    utils::index_3d_to_1d(m1c, m2c, zc, num_mass_cents, num_mass_cents, num_redz_cents, &idx);
+                    numb_expect_flat[idx] = numb_expect[m1c][m2c][zc];
+                    utils::index_3d_to_1d(m1, m2, z, num_mass_edges, num_mass_edges, num_redz_edges, &idx);
+                    diff_numb_flat[idx] = diff_numb[m1][m2][z];
+                    tauf_flat[idx] = tauf[m1][m2][z];
+                    if (f == 0) {
+                        num_dens_flat[idx] = num_dens[m1][m2][z];
+                    }
+                    #endif  // DEBUG_FREQ_STATS
+
+                    if (numb_expect[m1c][m2c][zc] <= num_expect_floor_per_bin) {
+                        num_skip_sam_num_expect++;
+                        continue;
+                    }
 
                     // we've added together 2-sides on 3 dimensions, so divide by 2^3 = 8
                     numb_expect[m1c][m2c][zc] /= 8.0;
-                    //! FIX: ENABLE FLOOR, MAKE SURE TO ZERO UNSET VALUES CORREECTLY
-                    // if ((FLOOR_NUMB_EXPECT > 0.0) && (numb_expect[m1c][m2c][zc] < FLOOR_NUMB_EXPECT)) {
-                    //     numb_expect[m1c][m2c][zc] = 0.0;
-                    //     num_floor_numb_expect++;
-                    //     continue;
-                    // }
 
                     // construct Poisson distribution centered on the expectation value
-                    // boost::random::poisson_distribution<> dist_poisson(numb_expect[m1c][m2c][zc]);
                     dist_poisson = boost::random::poisson_distribution(numb_expect[m1c][m2c][zc]);
-                    // draw_poisson = boost::random::variate_generator<boost::random::mt19937&, boost::random::poisson_distribution<>>(rng, dist_poisson);
                     draw_poisson = std::make_unique<VGType>(rng, dist_poisson);
 
                     // ---- Calculate GW amplitude for each binary
@@ -475,18 +466,6 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
                         if (numb_in_real == 0) continue;
                         gwb[f][r] += hs2 * numb_in_real / dlnf[f];
                     } // r
-
-                    // Prepare flatted output for printing statistics
-                    #ifdef DEBUG_FREQ_STATS
-                    utils::index_3d_to_1d(m1c, m2c, zc, num_mass_cents, num_mass_cents, num_redz_cents, &idx);
-                    numb_expect_flat[idx] = numb_expect[m1c][m2c][zc];
-                    utils::index_3d_to_1d(m1, m2, z, num_mass_edges, num_mass_edges, num_redz_edges, &idx);
-                    diff_numb_flat[idx] = diff_numb[m1][m2][z];
-                    tauf_flat[idx] = tauf[m1][m2][z];
-                    if (f == 0) {
-                        num_dens_flat[idx] = num_dens[m1][m2][z];
-                    }
-                    #endif  // DEBUG_FREQ_STATS
 
                 } // z
             } // m2
@@ -528,21 +507,13 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
 
     // ---- Check/report diagnostics
 
-    // if (FLOOR_NUM_DENS > 0.0) {
-    //     int tot_num = num_freq_cents * num_mass_edges * num_mass_edges * num_redz_edges;
-    //     LOG_INFO(
-    //         get_logger(), "`num_dens`    below floor ({:.2e}): {}/{}={:.2e}",
-    //         FLOOR_NUM_DENS, num_floor_num_dens, tot_num, (double)num_floor_num_dens/tot_num
-    //     );
-    // }
-
-    // if (FLOOR_NUMB_EXPECT > 0.0) {
-    //     int tot_num = num_freq_cents * num_mass_cents * num_mass_cents * num_redz_cents;
-    //     LOG_INFO(
-    //         get_logger(), "`numb_expect` below floor ({:.2e}): {}/{}={:.2e}",
-    //         FLOOR_NUMB_EXPECT, num_floor_numb_expect, tot_num, (double)num_floor_numb_expect/tot_num
-    //     );
-    // }
+    // #ifdef    SAM_NUM_EXPECT_FLOOR
+    int tot_num = num_freq_cents * num_mass_cents * num_mass_cents * num_redz_cents;
+    LOG_INFO(
+        get_logger(), "`numb_expect` below floor ({:.2e}): {}/{}={:.2e}",
+        num_expect_floor_per_bin, num_skip_sam_num_expect, tot_num, (double)num_skip_sam_num_expect/tot_num
+    );
+    // #endif // SAM_NUM_EXPECT_FLOOR
 
     #ifdef HDF5_OUTPUT
     LOG_DEBUG(get_logger(), "Writing data to HDF5...");

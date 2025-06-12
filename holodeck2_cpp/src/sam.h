@@ -9,6 +9,12 @@
 #include <cmath>
 #include <iostream>
 // #include <random>
+#include <memory>   // for std::unique_ptr
+
+#include <boost/math/distributions/poisson.hpp>
+#include <boost/random/mersenne_twister.hpp>
+#include <boost/random/poisson_distribution.hpp>
+#include <boost/random/variate_generator.hpp>
 
 #include "config.h"
 #include "constants.h"
@@ -19,6 +25,10 @@
 constexpr double FOUR_PI_C_MPC = 4 * PI * SPLC / MPC;    // 4*pi*c   [Mpc/s]
 
 // inline std::default_random_engine rng(42);          // RNG with fixed seed
+using RNGType   = boost::random::mt19937;
+using DistType  = boost::random::poisson_distribution<>;
+using VGType    = boost::random::variate_generator<RNGType&, DistType>;
+inline RNGType rng(42);   // use a fixed seed for reproducibility
 
 
 class GravWaves {
@@ -92,8 +102,8 @@ public:
     // Grid
     // double mass_pars[3] = {1E6, 1E12, 101};
     // double redz_pars[3] = {1E-2, 1E1, 91};
-    double mass_pars[3] = {1E6, 1E12, 31};
-    double redz_pars[3] = {1E-2, 1E1, 31};
+    double mass_pars[3] = {1E6, 1E12, 34};
+    double redz_pars[3] = {1E-2, 1E1, 35};
     // double mass_pars[3] = {1E6, 1E12, 21};
     // double redz_pars[3] = {1E-2, 1E1, 11};
 
