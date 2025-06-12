@@ -32,12 +32,15 @@ int main(int argc, char *argv[]) {
 
     LOG_INFO(get_logger(), "Calculating gravitational waves...\n");
 
-
-
-    int num_runs = 10;
-    double dur;
     auto start = std::chrono::steady_clock::now();
+    sam.grav_waves(pta, gw);
     auto end = std::chrono::steady_clock::now();
+    double dur = std::chrono::duration<double>(end - start).count();
+
+    LOG_INFO(get_logger(), "GWB at 1/yr: {:}", gw.gwb_str_at_freq());
+
+    /*
+    int num_runs = 10;
     double* durations = (double*)malloc(num_runs * sizeof(double));
     double ave_dur = 0.0, min_dur = 1e10, max_dur = 0.0;
     for (int i = 0; i < num_runs; ++i) {
@@ -55,13 +58,15 @@ int main(int argc, char *argv[]) {
 
     printf("Duration ave: %.2e, min: %.2e, max: %.2e\n", ave_dur, min_dur, max_dur);
 
-    LOG_INFO(get_logger(), "Gravitational waves calculated.\n");
+    free(durations);
+    */
 
+
+    LOG_INFO(get_logger(), "Gravitational waves calculated after {:.2e}.\n", dur);
 
     // ---- Cleanup
 
     LOG_WARNING(get_logger(), " ====    holodeck2::main(): completed.    ====\n");
 
-    free(durations);
 
 }
