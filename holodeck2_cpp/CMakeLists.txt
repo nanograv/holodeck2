@@ -24,6 +24,7 @@ include(FetchContent)
 
 # add_compile_definitions(DEBUG)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 
 # ==============================================================================
@@ -63,12 +64,8 @@ endif()
 message(STATUS "HDF5 include: ${HDF5_INCLUDE_DIRS}")
 message(STATUS "HDF5 libs:    ${HDF5_LIBRARIES}")
 
-# ---- Quill (C++ logging package, installed via homebrew)
-
-# set(QUILL_DIR "/opt/homebrew")
-
-# include_directories("${QUILL_DIR}/include")
-# link_directories("${QUILL_DIR}/lib")
+# ---- Quill (C++ logging package)
+# note: version installed with homebrew wasn't working, so use FetchContent instead
 
 FetchContent_Declare(
   quill
@@ -79,6 +76,12 @@ FetchContent_Declare(
 )
 
 FetchContent_MakeAvailable(quill)
+
+# ---- Boost
+# NOTE: the math/distribution/poisson is header only, so libraries dont need to be linked
+find_package(Boost REQUIRED COMPONENTS math)
+message(STATUS "Boost include: ${Boost_INCLUDE_DIRS}")
+message(STATUS "Boost libs: ${Boost_LIBRARIES}")
 
 
 # ==============================================================================
@@ -107,6 +110,7 @@ set_target_properties(holodeck2_cpp PROPERTIES
 # Include Python headers
 target_include_directories(holodeck2_cpp PRIVATE ${Python3_INCLUDE_DIRS})
 target_include_directories(holodeck2_cpp PRIVATE ${HDF5_INCLUDE_DIRS})
+target_include_directories(holodeck2_cpp PRIVATE ${Boost_INCLUDE_DIRS})
 target_link_libraries(holodeck2_cpp PRIVATE ${HDF5_LIBRARIES})
 target_link_libraries(holodeck2_cpp PRIVATE quill)
 
@@ -136,6 +140,7 @@ target_compile_definitions(holodeck2cpp PUBLIC PATH_DATA_DIR="${DATA_PATH}")
 target_compile_options(holodeck2cpp PRIVATE -fsanitize=address -g)
 target_link_options(holodeck2cpp PRIVATE -fsanitize=address)
 
+target_include_directories(holodeck2cpp PRIVATE ${Boost_INCLUDE_DIRS})
 target_include_directories(holodeck2cpp PRIVATE ${HDF5_INCLUDE_DIRS})
 target_link_libraries(holodeck2cpp PRIVATE ${HDF5_LIBRARIES})
 target_link_libraries(holodeck2cpp PRIVATE quill)
@@ -164,3 +169,4 @@ target_compile_definitions(test_holodeck PUBLIC PATH_DATA_DIR="${DATA_PATH}")
 target_include_directories(test_holodeck PRIVATE ${HDF5_INCLUDE_DIRS})
 target_link_libraries(test_holodeck PRIVATE ${HDF5_LIBRARIES})
 target_link_libraries(test_holodeck PRIVATE quill)
+target_include_directories(test_holodeck PRIVATE ${Boost_INCLUDE_DIRS})

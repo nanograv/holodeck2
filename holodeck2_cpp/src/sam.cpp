@@ -2,15 +2,27 @@
  *
  */
 
+#include <boost/math/distributions/poisson.hpp>
+#include <boost/random/mersenne_twister.hpp>
+#include <boost/random/poisson_distribution.hpp>
+#include <boost/random/variate_generator.hpp>
+#include <memory>   // for std::unique_ptr
+
 #include "sam.h"
 
 #include "cosmology.h"
 #include "physics.h"
 #include "utils.h"
 
+using RNGType   = boost::random::mt19937;
+using DistType  = boost::random::poisson_distribution<>;
+using VGType    = boost::random::variate_generator<RNGType&, DistType>;
 
 constexpr double FLOOR_NUMB_EXPECT = 1.0E-10;
 constexpr double FLOOR_NUM_DENS = 1.0E-20;
+
+
+RNGType rng(42);
 
 
 void hdf5_write_meta(hid_t h5_file, SAM &sam, PTA &pta, GravWaves &gw) {
@@ -247,6 +259,10 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
     double*** tauf;           // [M1][M2][Z] :
     // double numb_expect;        // number of binaries (expectation-value) in each bin (bin centers) []
 
+    boost::random::poisson_distribution<> dist_poisson;
+    // boost::random::variate_generator<boost::random::mt19937&, boost::random::poisson_distribution<>> draw_poisson;
+    std::unique_ptr<VGType> draw_poisson;
+
     // ---- Perform initializations & pre-calculations
 
     mchirp_cents_grams = (double**)malloc((num_mass_cents) * sizeof(double*));
@@ -428,6 +444,8 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
                         }
                     }
 
+                    if (numb_expect[m1c][m2c][zc] == 0.0) continue;
+
                     // we've added together 2-sides on 3 dimensions, so divide by 2^3 = 8
                     numb_expect[m1c][m2c][zc] /= 8.0;
                     //! FIX: ENABLE FLOOR, MAKE SURE TO ZERO UNSET VALUES CORREECTLY
@@ -438,7 +456,10 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
                     // }
 
                     // construct Poisson distribution centered on the expectation value
-                    std::poisson_distribution<int> dist(numb_expect[m1c][m2c][zc]);
+                    // boost::random::poisson_distribution<> dist_poisson(numb_expect[m1c][m2c][zc]);
+                    dist_poisson = boost::random::poisson_distribution(numb_expect[m1c][m2c][zc]);
+                    // draw_poisson = boost::random::variate_generator<boost::random::mt19937&, boost::random::poisson_distribution<>>(rng, dist_poisson);
+                    draw_poisson = std::make_unique<VGType>(rng, dist_poisson);
 
                     // ---- Calculate GW amplitude for each binary
 
@@ -450,7 +471,7 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
                     for(r = 0; r < num_reals; r++) {
                         //! FIX: consider implementing a cutoff to approximate the Poisson distribution
                         //!      with a normal distribution.
-                        numb_in_real = dist(rng);
+                        numb_in_real = (*draw_poisson)();
                         if (numb_in_real == 0) continue;
                         gwb[f][r] += hs2 * numb_in_real / dlnf[f];
                     } // r

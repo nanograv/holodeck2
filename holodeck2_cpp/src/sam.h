@@ -2,55 +2,23 @@
  *
  */
 
-
 #ifndef SAM_H
 #define SAM_H
 
 #include <cstdlib> // For malloc and free
 #include <cmath>
 #include <iostream>
-#include <random>
+// #include <random>
 
 #include "config.h"
 #include "constants.h"
-#include "physics.h"
 #include "cosmology.h"
+#include "physics.h"
+#include "pta.h"
 
 constexpr double FOUR_PI_C_MPC = 4 * PI * SPLC / MPC;    // 4*pi*c   [Mpc/s]
 
-inline std::default_random_engine rng(42);          // RNG with fixed seed
-
-
-class PTA {
-
-public:
-    double obs_dur_yr;     // [yr]
-    int num_freq_cents;
-    double* fobs_cents;    // [Hz]
-    double* fobs_edges;    // [Hz]
-
-    PTA(double dur=20.0, double nfreqs=30) : obs_dur_yr(dur), num_freq_cents(nfreqs) {
-        fobs_cents = (double*)malloc(num_freq_cents * sizeof(double));
-        fobs_edges = (double*)malloc((num_freq_cents+1) * sizeof(double));
-        double df = 1.0 / (obs_dur_yr * YR);
-        fobs_edges[0] = df * 0.5;
-        for (int ii = 0; ii < num_freq_cents; ii++) {
-            fobs_cents[ii] = df * (ii + 1);
-            fobs_edges[ii+1] = df * (ii + 1.5);
-        }
-        LOG_DEBUG(get_logger(),
-            "Initialized PTA with {} frequencies between [{:.2e}, {:.2e}] Hz = [{:.2e}, {:.2e}] yr^-1\n",
-            num_freq_cents, fobs_cents[0], fobs_edges[num_freq_cents-1],
-            fobs_cents[0]*YR, fobs_edges[num_freq_cents-1]*YR
-        );
-    };
-
-    ~PTA() {
-        free(fobs_cents);
-        free(fobs_edges);
-    };
-
-};
+// inline std::default_random_engine rng(42);          // RNG with fixed seed
 
 
 class GravWaves {
@@ -59,8 +27,8 @@ public:
     int num_reals;
     int num_louds;
 
-    double** gwb;
-    double*** cws;
+    double** gwb;    //  [F][R] : F=num_freq_cents, R=num_reals
+    double*** cws;   //  [F][R][L] : F=num_freq_cents, R=num_reals, L=num_louds
 
     GravWaves(PTA *pta, int nreals = 100, int nloud = 5) : pta(pta), num_reals(nreals), num_louds(nloud) {
         this->pta = pta;
@@ -78,6 +46,18 @@ public:
             "Initialized GravWaves with {} freqs, {} reals, {} louds\n",
             num_freq_cents, num_reals, num_louds
         );
+    }
+
+    std::string gwb_str_at_freq(double target_freq=1.0/YR) {
+        int fi = 0;
+        std::string msg;
+        while ((fi < num_freq_cents-1) && (pta->fobs_edges[fi+1] < target_freq)) fi++;
+        if ((pta->fobs_edges[fi] < target_freq) && (target_freq < pta->fobs_edges[fi+1])) {
+            msg = utils::quantiles_string(gwb[fi], num_reals, {0.10, 0.25, 0.5, 0.75, 0.90});
+        } else {
+            msg = std::format("Target frequency {:.2e} is not in bounds ({:.2e},{:.2e})!", target_freq, pta->fobs_edges[0], pta->fobs_edges[pta->num_freq_cents]);
+        }
+        return msg;
     }
 
     ~GravWaves() {
