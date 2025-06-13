@@ -54,6 +54,15 @@ namespace physics {
         *dadt = GW_DADT_SEP_CONST * m1 * m2 * (m1 + m2) / pow(sepa, 3);
     }
 
+    /**
+     * Calculate the hardening time in terms of frequency, $\tau_f = f/(df/dt) = dt/dln(f)$.
+     *
+     * @param m1          Mass of the primary [gram].
+     * @param m2          Mass of the secondary [gram].
+     * @param frst_orb    Rest-frame orbital frequency [1/sec].
+     * @return tauf       Output pointer for the hardening time [sec].
+     *
+     */
     void gw_hardening_time_freq(double m1, double m2, double frst_orb, double *tauf) {
         double mc;
         chirp_mass_from_m1m2(m1, m2, &mc);

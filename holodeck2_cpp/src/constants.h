@@ -28,10 +28,10 @@ constexpr double LOG10      = 2.30258509E+00;
 
 // ---- Constants
 
-constexpr double EDDT       = 6.32196208E+04;
-constexpr double NWTG       = 6.67430000E-08;
-constexpr double SCHW       = 1.48523205E-28;
-constexpr double SPLC       = 2.99792458E+10;
+constexpr double EDDT       = 6.32196208E+04;   //
+constexpr double NWTG       = 6.67430000E-08;   // [cm^3/g/sec^2] Newton's gravitational constant
+constexpr double SCHW       = 1.48523205E-28;   //
+constexpr double SPLC       = 2.99792458E+10;   // [cm/sec] speed of light in vacuum
 
 // ---- Units
 
@@ -55,7 +55,7 @@ constexpr double KPC        = 1.0E3 * PC;
 constexpr double MPC        = 1.0E6 * PC;
 constexpr double GPC        = 1.0E9 * PC;
 
-constexpr double KM_S_MPC   = 1.0E5/MPC;    // 1 km/s/Mpc [1/sec]
+constexpr double KM_S_MPC   = 1.0E5 / MPC;    // 1 km/s/Mpc [1/sec]
 
 
 // constexpr double HPLANCK    = 6.62607015E-27;

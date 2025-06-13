@@ -18,13 +18,10 @@ int main(int argc, char *argv[]) {
 
     Cosmology cosmo;
 
-    // PTA* pta = new PTA(20.0, 30);
-    PTA pta(15.0, 30);
+    PTA pta(15.0, 20);
 
-    // GravWaves* gw = new GravWaves(&pta, 10, 5);
-    GravWaves gw(&pta, 100, 5);
+    GravWaves gw(&pta, 10, 5);
 
-    // SAM* sam = new SAM(&cosmo);
     SAM sam(&cosmo);
 
 
