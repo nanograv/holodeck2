@@ -14,13 +14,11 @@
 // e.g. if there are 1e3 bins, 1e2 reals, and SAM_NUM_EXPECT_FLOOR=1e-2, then skip values below 1e-7
 constexpr double SAM_NUM_EXPECT_FLOOR = 1.0E-2;
 
-// ---- Debugging / diagnostic
 
-// #define DEBUG
+// ---- Optional behavior
 
-#ifdef DEBUG
-#define DEBUG_FREQ_STATS   // calculate & print per-frequency-bin statistics
-#endif // DEBUG
+// Maximum cutoff value for `tauf` (in years) for number-density calculations.
+#define MAX_TAUF_YR 1.0E10    // [yr]
 
 
 // ---- Performance / optimization
@@ -32,4 +30,13 @@ constexpr double SAM_NUM_EXPECT_FLOOR = 1.0E-2;
 #ifdef    HDF5_OUTPUT
 #define HDF5_OUTPUT_DETAILS  // save additional arrays to HDF5 output file
 #endif // HDF5_OUTPUT
+
+
+// ---- Debugging / diagnostic
+
+#define DEBUG
+
+#ifdef DEBUG
+#define DEBUG_FREQ_STATS   // calculate & print per-frequency-bin statistics
+#endif // DEBUG
 

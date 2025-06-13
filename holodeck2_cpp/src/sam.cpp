@@ -228,11 +228,10 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
     // double*** cws = gw.cws;  // [F][R][L]  : frequencies, realizations, loudest
 
     // Temporary variables
-    double hs2;               // spectral-strain-squared of an individual binary
     int numb_in_real;         // number of binaries in a given bin, in a given realization
-    int m1, m2, z, f, r;      // loop iteration variables
-    int m1c, m2c, zc;         // loop iteration variables for bin-centers
-    int ii, jj, kk;           // loop iteration variables for integration stencil
+    int m1, m2, z, f, r;      // loop iteration variables bin-edge   indices
+    int m1c, m2c, zc;         // loop iteration variables bin-center indices
+    int ii, jj, kk;           // loop iteration variables for integration stencils
     int idx;
     std::string msg;
 
@@ -255,7 +254,8 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
 
     //! FIX: these doesn't need to be stored always, add preprocessor directive to turn-on and turn-off as desired
     double*** numb_expect;    // [M1-1][M2-1][Z-1] : number of binaries (expectation-value) in each bin (bin centers) []
-    double*** tauf;           // [M1][M2][Z] :
+    double*** hs2;            // [M1-1][M2-1][Z-1] : spectral-strain-squared of an individual binary at grid centers
+    double*** tauf;           // [M1][M2][Z] : binary hardening timescale [sec] in terms of frequency, $f/(df/dt)$
 
     DistPoissonType dist_poisson;
     std::unique_ptr<VGPoissonType> draw_poisson;
@@ -267,15 +267,16 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
     diff_numb = (double***)malloc(num_mass_edges * sizeof(double**));
     tauf = (double***)malloc((num_mass_edges) * sizeof(double**));
     numb_expect = (double***)malloc((num_mass_cents) * sizeof(double**));     // bin-centers!
+    hs2 = (double***)malloc((num_mass_cents) * sizeof(double**));     // bin-centers
 
-    #ifdef DEBUG_FREQ_STATS
+    #ifdef    DEBUG_FREQ_STATS
     int size3d_edges = num_mass_edges * num_mass_edges * num_redz_edges;
     int size3d_cents = num_mass_cents * num_mass_cents * num_redz_cents;
     double* num_dens_flat = (double*)malloc(size3d_edges * sizeof(double));
     double* tauf_flat = (double*)malloc(size3d_edges * sizeof(double));
     double* diff_numb_flat = (double*)malloc(size3d_edges * sizeof(double));
     double* numb_expect_flat = (double*)malloc(size3d_cents * sizeof(double));
-    #endif  // DEBUG_FREQ_STATS
+    #endif // DEBUG_FREQ_STATS
 
     LOG_DEBUG(get_logger(), "SAM::grav_waves(): allocation completed.  Initializing...\n");
 
@@ -299,17 +300,19 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
             m1c = m1 - 1;
             mchirp_cents_grams[m1c] = (double*)malloc((num_mass_cents) * sizeof(double));
             numb_expect[m1c] = (double**)malloc((num_mass_cents) * sizeof(double*));
+            hs2[m1c] = (double**)malloc((num_mass_cents) * sizeof(double*));
         }
 
         for(m2 = 0; m2 < num_mass_edges; m2++) {
-            num_dens[m1][m2] = (double*)malloc(num_redz_edges * sizeof(double));
-            diff_numb[m1][m2] = (double*)malloc(num_redz_edges * sizeof(double));
-            tauf[m1][m2] = (double*)malloc(num_redz_edges * sizeof(double));
+            num_dens[m1][m2] = (double*)calloc(num_redz_edges, sizeof(double));
+            diff_numb[m1][m2] = (double*)calloc(num_redz_edges, sizeof(double));
+            tauf[m1][m2] = (double*)calloc(num_redz_edges, sizeof(double));
 
             // `mchirp_cents_grams` [gram], Chirp-Mass (rest-frame)
             if (m1 > 0 && m2 > 0) {
                 m2c = m2 - 1;
-                numb_expect[m1c][m2c] = (double*)malloc((num_redz_cents) * sizeof(double));  // bin-centers!
+                numb_expect[m1c][m2c] = (double*)calloc(num_redz_cents, sizeof(double));  // bin-centers
+                hs2[m1c][m2c] = (double*)calloc(num_redz_cents, sizeof(double));  // bin-centers
                 physics::chirp_mass_from_m1m2(
                     mbh_mass_cents_grams[m1c], mbh_mass_cents_grams[m2c], &mchirp_cents_grams[m1c][m2c]
                 );
@@ -357,6 +360,10 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
         h5_file, "numb_expect",
         num_freq_cents, num_mass_cents, num_mass_cents, num_redz_cents
     );
+    H5Slice_4D h5_hs2 = H5Slice_4D(
+        h5_file, "hs2",
+        num_freq_cents, num_mass_cents, num_mass_cents, num_redz_cents
+    );
     H5Slice_4D h5_tauf = H5Slice_4D(
         h5_file, "tauf",
         num_freq_cents, num_mass_edges, num_mass_edges, num_redz_edges
@@ -402,6 +409,12 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
                     physics::gw_hardening_time_freq(
                         mbh_mass_edges_grams[m1], mbh_mass_edges_grams[m2], frst_orb_zedges[z][f], &tauf[m1][m2][z]
                     );
+
+                    #ifdef    MAX_TAUF_YR
+                    if (tauf[m1][m2][z] > MAX_TAUF_YR * YR) {
+                        tauf[m1][m2][z] = MAX_TAUF_YR * YR;
+                    }
+                    #endif // MAX_TAUF_YR
 
                     // expectation value for differential number of binaries
                     // this is:  $d^3 n / [dlog10(M1) dlog10(M2) dz dlog_e(f)]$
@@ -468,13 +481,13 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
 
                     // `hs2` [], Spectral strain-squared of the binary
                     physics::gw_strain_source_sq(
-                        mchirp_cents_grams[m1c][m2c], dcom_cents_cm[zc], frst_orb_zcents[zc][f], &hs2
+                        mchirp_cents_grams[m1c][m2c], dcom_cents_cm[zc], frst_orb_zcents[zc][f], &hs2[m1c][m2c][zc]
                     );
 
                     for(r = 0; r < num_reals; r++) {
                         numb_in_real = (*draw_poisson)();
                         if (numb_in_real == 0) continue;
-                        gwb[f][r] += hs2 * numb_in_real / dlnf[f];
+                        gwb[f][r] += hs2[m1c][m2c][zc] * numb_in_real / dlnf[f];
                     } // r
 
                 } // z
@@ -506,6 +519,7 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
         // Write hyperslab at [f, :, :, :]
         #ifdef    HDF5_OUTPUT_DETAILS
         h5_numb_expect.write_slice_at(f, numb_expect, num_mass_cents, num_mass_cents, num_redz_cents);
+        h5_hs2.write_slice_at(f, hs2, num_mass_cents, num_mass_cents, num_redz_cents);
         h5_tauf.write_slice_at(f, tauf, num_mass_edges, num_mass_edges, num_redz_edges);
         #endif // HDF5_OUTPUT_DETAILS
 
@@ -560,6 +574,7 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
                 m1c = m1 - 1;
                 m2c = m2 - 1;
                 free(numb_expect[m1c][m2c]);
+                free(hs2[m1c][m2c]);
             }
         }
         free(num_dens[m1]);
@@ -569,11 +584,13 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
             m1c = m1 - 1;
             free(mchirp_cents_grams[m1c]);
             free(numb_expect[m1c]);
+            free(hs2[m1c]);
         }
     }
+    free(mchirp_cents_grams);
     free(num_dens);
     free(diff_numb);
-    free(mchirp_cents_grams);
+    free(numb_expect);
     free(tauf);
 
     #ifdef    DEBUG_FREQ_STATS
