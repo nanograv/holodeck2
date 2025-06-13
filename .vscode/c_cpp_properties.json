@@ -3,10 +3,13 @@
         {
             "name": "Mac",
             "includePath": [
-                "${workspaceFolder}/**"
+                "${workspaceFolder}/**",
+                "/opt/homebrew/Cellar/boost/1.88.0/include"
             ],
             "defines": [],
-            "compileCommands": "${workspaceFolder}/holodeck2_cpp/build/compile_commands.json",
+            "compileCommands": [
+                "${workspaceFolder}/holodeck2_cpp/build/compile_commands.json"
+            ],
             "compilerPath": "/usr/bin/clang",
             "cStandard": "c23",
             "cppStandard": "c++23",
