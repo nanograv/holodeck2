@@ -103,8 +103,6 @@ public:
     double redz_pars[3] = {1E-2, 1E1, 91};
     // double mass_pars[3] = {1E6, 1E12, 34};
     // double redz_pars[3] = {1E-2, 1E1, 35};
-    // double mass_pars[3] = {1E6, 1E12, 21};
-    // double redz_pars[3] = {1E-2, 1E1, 11};
 
     // GSMF - Double Schechter
     double gsmf_log10_phi1[3] = {-2.383, -0.264, -0.107};

@@ -29,7 +29,7 @@ constexpr double SAM_NUM_EXPECT_FLOOR = 1.0E-2;
 // ---- Output
 
 #define HDF5_OUTPUT
-#ifdef HDF5_OUTPUT
-// #define HDF5_OUTPUT_DETAILS  // save additional arrays to HDF5 output file
-#endif  // HDF5_OUTPUT
+#ifdef    HDF5_OUTPUT
+#define HDF5_OUTPUT_DETAILS  // save additional arrays to HDF5 output file
+#endif // HDF5_OUTPUT
 

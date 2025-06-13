@@ -1,4 +1,10 @@
 /**
+ * Holodeck2 C++ - Semi-Analytic Models
+ * ------------------------------------
+ *
+ * Notes:
+ *   - Boost `poisson_distribution` is *always* faster than `normal_distribution`, so we cannot speed things up by
+ *     switching to normal distributions at large means.
  *
  */
 
@@ -7,6 +13,9 @@
 #include "cosmology.h"
 #include "physics.h"
 #include "utils.h"
+
+
+#define HACK_NO_MRAT_ABOVE_ONE
 
 
 void hdf5_write_meta(hid_t h5_file, SAM &sam, PTA &pta, GravWaves &gw) {
@@ -46,7 +55,6 @@ double SAM::dngal_to_dnmbh(double mbh1, double mbh2, double ms1, double ms2, dou
     double qterm = (1.0 + ms2/ms1) / (1.0 + (mbh2/mbh1));
     return ((mbh1 + mbh2) / (ms1 + ms2)) * (dmstar_dmbh_pri * qterm / dqbh_dqgal);
 }
-
 
 
 double SAM::gmr_illustris(double mstar_tot, double mstar_rat, double rz) {
@@ -136,15 +144,22 @@ double SAM::mmbulge_mstar_from_mbh(double mbh) {
  */
 double SAM::number_density(double mbh1, double mbh2, double rz, bool return_galgal) {
 
+    //! ------------------------------------------------------------------------
+    //! FIX: WARNING this is a hack for now.  This could cause problems when there is scatter in MMBulge.
+    #ifdef    HACK_NO_MRAT_ABOVE_ONE
+    if (mbh2 > mbh1) return 0.0;
+    #endif // HACK_NO_MRAT_ABOVE_ONE
+    //! ------------------------------------------------------------------------
+
     // ---- Get galaxy stellar masses
 
-    // NOTE: assume primary MBH ==> primary galaxy mass ==> GSMF
     // primary-galaxy stellar-mass [Msol]
     double ms1 = mmbulge_mstar_from_mbh(mbh1);
 
     // ---- Get galaxy stellar mass function
 
     // number-density of galaxies, [Mpc^-3]
+    // Assume primary galaxy determines merger number density.
     double phi = gsmf_double_schechter(ms1, rz);
 
     // ---- Get galaxy-galaxy merger rate
@@ -160,11 +175,6 @@ double SAM::number_density(double mbh1, double mbh2, double rz, bool return_galg
     cosmo->dtdz_from_redz(rz, &dtdz);
 
     double ndens = phi * gmr * dtdz;
-
-    // printf(
-    //     "mbh1=%.2e, ms1=%.2e | mbh2=%.2e, ms2=%.2e | phi=%.2e, gmr=%.2e, dtdz=%.2e\n",
-    //     mbh1, ms1, mbh2, ms2, phi, gmr, dtdz
-    // );
 
     // Return only galaxy-galaxy merger rate
     if (return_galgal) { return ndens; }
@@ -190,6 +200,12 @@ double SAM::number_density(double mbh1, double mbh2, double rz, bool return_galg
 void SAM::grav_waves(PTA &pta, GravWaves &gw) {
     LOG_DEBUG(get_logger(), "SAM::grav_waves(): allocating...");
 
+    #ifdef    HACK_NO_MRAT_ABOVE_ONE
+    LOG_WARNING(get_logger(), "Using a hack to prevent mass-ratios above unity!\n");
+    #else
+    throw std::runtime_error("`HACK_NO_MRAT_ABOVE_ONE` is not defined!");
+    #endif // HACK_NO_MRAT_ABOVE_ONE
+
     // Grid/domain sizes
     int num_mass_edges = this->num_mass_edges;
     int num_mass_cents = num_mass_edges - 1;
@@ -207,38 +223,37 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
     double* redz_edges = this->redz_edges;
     double* redz_cents = this->redz_cents;
 
-    // Values to be calculated/filled
+    // Output values to be calculated/filled
     double** gwb = gw.gwb;   // [F][R]     : frequencies, realizations
     // double*** cws = gw.cws;  // [F][R][L]  : frequencies, realizations, loudest
 
     // Temporary variables
-    double hs2;                // spectral-strain-squared of an individual binary
-    // double tauf;               // GW Hardening timescale in frequency (f / df/dt)  [s]
-    int numb_in_real;
+    double hs2;               // spectral-strain-squared of an individual binary
+    int numb_in_real;         // number of binaries in a given bin, in a given realization
     int m1, m2, z, f, r;      // loop iteration variables
     int m1c, m2c, zc;         // loop iteration variables for bin-centers
     int ii, jj, kk;           // loop iteration variables for integration stencil
     int idx;
     std::string msg;
 
-    double mbh_mass_edges_grams[num_mass_edges];    // MBH mass, at grid edges   [grams]
-    double mbh_mass_cents_grams[num_mass_cents];  // MBH mass, at grid centers [grams]
+    double mbh_mass_edges_grams[num_mass_edges];              // MBH mass, at grid edges   [grams]
+    double mbh_mass_cents_grams[num_mass_cents];              // MBH mass, at grid centers [grams]
     double frst_orb_zedges[num_redz_edges][num_freq_cents];   // Rest-frame orbital freq (at redshift-edges)   [1/s]
-    double frst_orb_zcents[num_redz_cents][num_freq_cents]; // Rest-frame orbital freq (at redshift-centers) [1/s]
-    double dcom_edges_Mpc[num_redz_edges]; // comoving distance, at redshift bin edges [MPC]
-    double dcom_edges_cm[num_redz_edges];    // comoving distance, at redshift bin edges [cm]
-    double dcom_cents_cm[num_redz_cents];  // comoving distance, at redshift bin *centers* [cm]
-    double cosmo_fact[num_redz_edges];     // dVc/dz  [Mpc^3/s]
+    double frst_orb_zcents[num_redz_cents][num_freq_cents];   // Rest-frame orbital freq (at redshift-centers) [1/s]
+    double dcom_edges_Mpc[num_redz_edges];                    // comoving distance, at redshift bin edges [MPC]
+    double dcom_edges_cm[num_redz_edges];                     // comoving distance, at redshift bin edges [cm]
+    double dcom_cents_cm[num_redz_cents];                     // comoving distance, at redshift bin *centers* [cm]
+    double cosmo_fact[num_redz_edges];                        // dVc/dz  [Mpc^3/s]
     // bin-widths
     double dlog10_mbh[num_mass_cents];   // log10(mbh) bin-width
     double dz[num_redz_cents];           // redshift bin-width
     double dlnf[num_freq_cents];
 
     double** mchirp_cents_grams;    // [M1-1][M2-1] : chirp mass (rest-frame) at grid centers [grams]
-    double*** num_dens;       // [M1][M2][Z] : differential number-density of binaries at grid edges [Mpc^-3]
-    double*** diff_numb;      // [M1][M2][Z] : differential-number of binaries at grid edges []
+    double*** num_dens;             // [M1][M2][Z] : differential number-density of binaries at grid edges [Mpc^-3]
+    double*** diff_numb;            // [M1][M2][Z] : differential-number of binaries at grid edges []
 
-    //! FIX: this doesn't need to be stored always, add preprocessor directive to turn-on and turn-off as desired
+    //! FIX: these doesn't need to be stored always, add preprocessor directive to turn-on and turn-off as desired
     double*** numb_expect;    // [M1-1][M2-1][Z-1] : number of binaries (expectation-value) in each bin (bin centers) []
     double*** tauf;           // [M1][M2][Z] :
 
@@ -254,8 +269,6 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
     numb_expect = (double***)malloc((num_mass_cents) * sizeof(double**));     // bin-centers!
 
     #ifdef DEBUG_FREQ_STATS
-    // int size4d_cedges = num_freq_cents * num_mass_edges * num_mass_edges * num_redz_edges;
-    // int size4d_cents = num_freq_cents * num_mass_cents * num_mass_cents * num_redz_cents;
     int size3d_edges = num_mass_edges * num_mass_edges * num_redz_edges;
     int size3d_cents = num_mass_cents * num_mass_cents * num_redz_cents;
     double* num_dens_flat = (double*)malloc(size3d_edges * sizeof(double));
@@ -335,11 +348,11 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
 
     // ---- Setup HDF5 file and outputs
 
-    #ifdef HDF5_OUTPUT
+    #ifdef    HDF5_OUTPUT
     LOG_DEBUG(get_logger(), "SAM::grav_waves(): intializing hdf5 file '{}' for output...", FNAME_OUTPUT_HDF5);
     hid_t h5_file = H5Fcreate(FNAME_OUTPUT_HDF5, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
 
-    #ifdef HDF5_OUTPUT_DETAILS
+    #ifdef    HDF5_OUTPUT_DETAILS
     H5Slice_4D h5_numb_expect = H5Slice_4D(
         h5_file, "numb_expect",
         num_freq_cents, num_mass_cents, num_mass_cents, num_redz_cents
@@ -348,8 +361,8 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
         h5_file, "tauf",
         num_freq_cents, num_mass_edges, num_mass_edges, num_redz_edges
     );
-    #endif  // HDF5_OUTPUT_DETAILS
-    #endif  // HDF5_OUTPUT
+    #endif // HDF5_OUTPUT_DETAILS
+    #endif // HDF5_OUTPUT
 
     // ---- GWB Calculation
 
@@ -428,7 +441,7 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
                     }
 
                     // Prepare flatted output for printing statistics
-                    #ifdef DEBUG_FREQ_STATS
+                    #ifdef    DEBUG_FREQ_STATS
                     utils::index_3d_to_1d(m1c, m2c, zc, num_mass_cents, num_mass_cents, num_redz_cents, &idx);
                     numb_expect_flat[idx] = numb_expect[m1c][m2c][zc];
                     utils::index_3d_to_1d(m1, m2, z, num_mass_edges, num_mass_edges, num_redz_edges, &idx);
@@ -437,7 +450,7 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
                     if (f == 0) {
                         num_dens_flat[idx] = num_dens[m1][m2][z];
                     }
-                    #endif  // DEBUG_FREQ_STATS
+                    #endif // DEBUG_FREQ_STATS
 
                     if (numb_expect[m1c][m2c][zc] <= num_expect_floor_per_bin) {
                         num_skip_sam_num_expect++;
@@ -459,8 +472,6 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
                     );
 
                     for(r = 0; r < num_reals; r++) {
-                        //! FIX: consider implementing a cutoff to approximate the Poisson distribution
-                        //!      with a normal distribution.
                         numb_in_real = (*draw_poisson)();
                         if (numb_in_real == 0) continue;
                         gwb[f][r] += hs2 * numb_in_real / dlnf[f];
@@ -474,7 +485,7 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
             gwb[f][r] = sqrt(gwb[f][r]);
         }
 
-        #ifdef DEBUG_FREQ_STATS
+        #ifdef    DEBUG_FREQ_STATS
         LOG_INFO(get_logger(), "frequency {:03d}\n", f);
         if (f == 0) {
             msg = utils::quantiles_string(num_dens_flat, size3d_edges, {0.10, 0.25, 0.5, 0.75, 0.90});
@@ -488,15 +499,15 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
         LOG_INFO(get_logger(), "`numb_expect[f]` : {}\n", msg);
         msg = utils::quantiles_string(gwb[f], num_reals, {0.10, 0.25, 0.5, 0.75, 0.90});
         LOG_INFO(get_logger(), "`gwb[f]`         : {}\n", msg);
-        #endif  // DEBUG_FREQ_STATS
+        #endif // DEBUG_FREQ_STATS
 
         // ---- Save output to HDF5 file
 
         // Write hyperslab at [f, :, :, :]
-        #ifdef HDF5_OUTPUT_DETAILS
+        #ifdef    HDF5_OUTPUT_DETAILS
         h5_numb_expect.write_slice_at(f, numb_expect, num_mass_cents, num_mass_cents, num_redz_cents);
         h5_tauf.write_slice_at(f, tauf, num_mass_edges, num_mass_edges, num_redz_edges);
-        #endif  // HDF5_OUTPUT_DETAILS
+        #endif // HDF5_OUTPUT_DETAILS
 
         LOG_DEBUG(get_logger(), "freq {:03d}/{:03d} done.", f, num_freq_cents);
 
@@ -514,7 +525,7 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
     );
     // #endif // SAM_NUM_EXPECT_FLOOR
 
-    #ifdef HDF5_OUTPUT
+    #ifdef    HDF5_OUTPUT
     LOG_DEBUG(get_logger(), "Writing data to HDF5...");
 
     // ---- Write additional data to HDF5 file
@@ -524,17 +535,17 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
         num_freq_cents, num_reals
     );
 
-    #ifdef HDF5_OUTPUT_DETAILS
+    #ifdef    HDF5_OUTPUT_DETAILS
     utils::hdf5_write_array3d<double>(
         h5_file, NULL, "num_dens",
         num_dens, num_mass_edges, num_mass_edges, num_redz_edges
     );
-    #endif  // HDF5_OUTPUT_DETAILS
+    #endif // HDF5_OUTPUT_DETAILS
 
     hdf5_write_meta(h5_file, *this, pta, gw);
 
     LOG_DEBUG(get_logger(), "SAM::grav_waves(): Wrote data to HDF5.");
-    #endif  // HDF5_OUTPUT
+    #endif // HDF5_OUTPUT
 
     // ---- Clean up
 
@@ -565,17 +576,17 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
     free(mchirp_cents_grams);
     free(tauf);
 
-    #ifdef DEBUG_FREQ_STATS
+    #ifdef    DEBUG_FREQ_STATS
     free(num_dens_flat);
     free(tauf_flat);
     free(diff_numb_flat);
     free(numb_expect_flat);
-    #endif  // DEBUG_FREQ_STATS
+    #endif // DEBUG_FREQ_STATS
 
     // Close HDF5 dataset and file
-    #ifdef HDF5_OUTPUT
+    #ifdef    HDF5_OUTPUT
     H5Fclose(h5_file);
-    #endif  // HDF5_OUTPUT
+    #endif // HDF5_OUTPUT
 
     LOG_DEBUG(get_logger(), "SAM::grav_waves(): completed.");
 
