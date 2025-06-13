@@ -24,10 +24,9 @@
 
 constexpr double FOUR_PI_C_MPC = 4 * PI * SPLC / MPC;    // 4*pi*c   [Mpc/s]
 
-// inline std::default_random_engine rng(42);          // RNG with fixed seed
-using RNGType   = boost::random::mt19937;
-using DistType  = boost::random::poisson_distribution<>;
-using VGType    = boost::random::variate_generator<RNGType&, DistType>;
+using RNGType          = boost::random::mt19937;
+using DistPoissonType  = boost::random::poisson_distribution<>;
+using VGPoissonType    = boost::random::variate_generator<RNGType&, DistPoissonType>;
 inline RNGType rng(42);   // use a fixed seed for reproducibility
 
 
@@ -100,10 +99,10 @@ public:
 //! FIX: make these private
 // private:
     // Grid
-    // double mass_pars[3] = {1E6, 1E12, 101};
-    // double redz_pars[3] = {1E-2, 1E1, 91};
-    double mass_pars[3] = {1E6, 1E12, 34};
-    double redz_pars[3] = {1E-2, 1E1, 35};
+    double mass_pars[3] = {1E6, 1E12, 101};
+    double redz_pars[3] = {1E-2, 1E1, 91};
+    // double mass_pars[3] = {1E6, 1E12, 34};
+    // double redz_pars[3] = {1E-2, 1E1, 35};
     // double mass_pars[3] = {1E6, 1E12, 21};
     // double redz_pars[3] = {1E-2, 1E1, 11};
 

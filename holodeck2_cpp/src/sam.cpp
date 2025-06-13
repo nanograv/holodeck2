@@ -242,9 +242,8 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
     double*** numb_expect;    // [M1-1][M2-1][Z-1] : number of binaries (expectation-value) in each bin (bin centers) []
     double*** tauf;           // [M1][M2][Z] :
 
-    boost::random::poisson_distribution<> dist_poisson;
-    // boost::random::variate_generator<boost::random::mt19937&, boost::random::poisson_distribution<>> draw_poisson;
-    std::unique_ptr<VGType> draw_poisson;
+    DistPoissonType dist_poisson;
+    std::unique_ptr<VGPoissonType> draw_poisson;
 
     // ---- Perform initializations & pre-calculations
 
@@ -449,8 +448,8 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
                     numb_expect[m1c][m2c][zc] /= 8.0;
 
                     // construct Poisson distribution centered on the expectation value
-                    dist_poisson = boost::random::poisson_distribution(numb_expect[m1c][m2c][zc]);
-                    draw_poisson = std::make_unique<VGType>(rng, dist_poisson);
+                    dist_poisson = DistPoissonType(numb_expect[m1c][m2c][zc]);
+                    draw_poisson = std::make_unique<VGPoissonType>(rng, dist_poisson);
 
                     // ---- Calculate GW amplitude for each binary
 

@@ -5,33 +5,39 @@
 # Run `make run` to execute the compiled program.
 
 CXX = g++
-# CXXFLAGS = -std=c++23 -Wall -Wextra -O2
-# LDFLAGS = -lm
-CXXFLAGS =  -std=c++23 \
-			-Wall \
-			-I/usr/local/include \
-			-I/opt/homebrew/Cellar/boost/1.88.0/include
 
-LDFLAGS =   -lm \
-			# -L/usr/local/lib \
-			# -L/opt/homebrew/Cellar/boost/1.88.0/lib
+CXXFLAGS = -std=c++23 \
+           -Wall \
+           -I/usr/local/include \
+           -I/opt/homebrew/Cellar/boost/1.88.0/include
 
-TARGET = poisson_distribution
+LDFLAGS = -lm \
+          # -L/usr/local/lib \
+          # -L/opt/homebrew/Cellar/boost/1.88.0/lib
+
+BUILDDIR = build
+TARGETNAME = poisson_distribution
+TARGET = $(BUILDDIR)/$(TARGETNAME)
+
 SOURCES = poisson_distribution.cpp
 OBJECTS = $(SOURCES:.cpp=.o)
+BUILD_OBJECTS = $(addprefix $(BUILDDIR)/, $(OBJECTS))
 
 all: $(TARGET)
 
-$(TARGET): $(OBJECTS)
+# Rule to link final binary
+$(TARGET): $(BUILD_OBJECTS)
 	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 
-%.o: %.cpp
+# Rule to compile object files in build dir
+$(BUILDDIR)/%.o: %.cpp
+	@mkdir -p $(BUILDDIR)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean:
-	rm -f $(OBJECTS) $(TARGET)
+	rm -rf $(BUILDDIR)
 
 run: $(TARGET)
 	./$(TARGET)
 
-.PHONY: all clean
+.PHONY: all clean run
