@@ -184,6 +184,7 @@ double SAM::number_density(double mbh1, double mbh2, double rz, bool return_galg
     // we want ``dn_mbhb / [dlog10(M_bh) dq_bh qz]``
     // so far we have ``dn_gal / [dlog10(M_gal) dq_gal dz]``
 
+    FIX THIS NEEDS TO CONVERT /dm1*dm2 instead of dq
     ndens = ndens * dngal_to_dnmbh(mbh1, mbh2, ms1, ms2, rz);
 
     // ---- Add scatter from the M-Mbulge relation
@@ -336,15 +337,16 @@ void SAM::grav_waves(PTA &pta, GravWaves &gw) {
             // Get comoving distance at bin-centers in Mpc
             this->cosmo->dcom_from_redz(redz_cents[zc], &dcom_cents_cm[zc]);
             // convert from Mpc to cm
-            dcom_cents_cm[zc] = dcom_cents_cm[zc] * MPC;
+            dcom_cents_cm[zc] *= MPC;
         }
 
+        // Calculate the rest-frame orbital frequencies based on the given observer-frame GW frequencies.
         for(f = 0; f < num_freq_cents; f++) {
-            physics::frst_from_fobs(fobs_cents[f], redz_edges[z], &frst_orb_zedges[z][f]);
+            physics::frst_from_fobs(fobs_cents[f], redz_edges[z], &frst_orb_zedges[z][f], 2);
             if (z == 0) {
                 dlnf[f] = log(fobs_edges[f+1]) - log(fobs_edges[f]);
             } else {
-                physics::frst_from_fobs(fobs_cents[f], redz_cents[zc], &frst_orb_zcents[zc][f]);
+                physics::frst_from_fobs(fobs_cents[f], redz_cents[zc], &frst_orb_zcents[zc][f], 2);
             }
         }
     }
