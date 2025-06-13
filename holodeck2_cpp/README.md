@@ -9,8 +9,7 @@ NOTE: if the shared library is built against a different version of python, the 
 
 ### BUGS / URGENT
 
-[ ] There is considerable density at very high secondary masses!  Density is not cutting off correctly.  m2 might be allowed to be higher than m1, this should not be the case (at least before scatter is implemented).
-[ ] Implement scatter is MMBulge relation.
+[ ] Implement scatter is MMBulge relation.  NOTE: the current hacky fix for avoiding mass-ratios above unity will need to be updated!
 [ ] Implement non-GW hardening.
 
 ### General Improvements 
@@ -20,5 +19,4 @@ NOTE: if the shared library is built against a different version of python, the 
 [ ] Change to better units (i.e. pc, Msol, Myr)
 [ ] Implement occupancy fraction to zero the number-density of low-mass MBHs
 [ ] Explore RNG Optimization.  The Poisson samples are extremely expensive (currently dominating runtime for GWB calculations; using boost::random::poisson_distribution).  It's possible that (at times?) a more custom approach could be better, for example, since each poisson_distribution is being samples `num_realizations` times, it might be faster to precompute all of the uniform random numbers, and then simultaneously invert the poisson CDF to find the corresponding samples for all of them together.  This would avoid searching the full CDF each time.  However, it looks like boost only uses inversion sampling for certain values of the mean, so this might only produce a speed up in those cases.  **First step**: do some simple tests about whether or not optimization is possible.
-
 
